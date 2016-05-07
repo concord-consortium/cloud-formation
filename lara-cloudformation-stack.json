@@ -1,0 +1,616 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources": {
+    "ELB": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+        "Subnets": [
+          "subnet-7fb16326"
+        ],
+        "HealthCheck": {
+          "HealthyThreshold": "2",
+          "Interval": "5",
+          "Target": "HTTP:80/rancher-loadbalancer-test",
+          "Timeout": "2",
+          "UnhealthyThreshold": "2"
+        },
+        "ConnectionDrainingPolicy": {
+          "Enabled": "true",
+          "Timeout": "300"
+        },
+        "ConnectionSettings": {
+          "IdleTimeout": "60"
+        },
+        "CrossZone": "true",
+        "SecurityGroups": [
+          {
+            "Ref": "SecurityGroupLoadBalancer"
+          }
+        ],
+        "Listeners": [
+          {
+            "InstancePort": "80",
+            "LoadBalancerPort": "80",
+            "Protocol": "HTTP",
+            "InstanceProtocol": "HTTP"
+          },
+          {
+            "InstancePort": "80",
+            "LoadBalancerPort": "443",
+            "Protocol": "HTTPS",
+            "InstanceProtocol": "HTTP",
+            "SSLCertificateId": {
+              "Fn::FindInMap": [
+                "SSLCertificateMap",
+                {
+                  "Ref": "SSLCertificateName"
+                },
+                "Id"
+              ]
+            }
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "lara"
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Contact",
+            "Value": "scytacki"
+          }
+        ]
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "e49166cc-7af8-4830-bb88-ddbe3a991c8e"
+        }
+      }
+    },
+    "AutoScaler": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "AvailabilityZones": [
+          "us-east-1c"
+        ],
+        "Cooldown": "400",
+        "DesiredCapacity": "1",
+        "HealthCheckGracePeriod": "120",
+        "HealthCheckType": "EC2",
+        "MaxSize": "6",
+        "MinSize": "1",
+        "VPCZoneIdentifier": [
+          "subnet-7fb16326"
+        ],
+        "LaunchConfigurationName": {
+          "Ref": "LaunchConfiguration"
+        },
+        "LoadBalancerNames": [
+          {
+            "Ref": "ELB"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Contact",
+            "Value": "scytacki",
+            "PropagateAtLaunch": true
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            },
+            "PropagateAtLaunch": true
+          },
+          {
+            "Key": "Name",
+            "Value": {
+              "Ref": "AWS::StackName"
+            },
+            "PropagateAtLaunch": true
+          },
+          {
+            "Key": "Project",
+            "Value": "lara",
+            "PropagateAtLaunch": true
+          }
+        ],
+        "TerminationPolicies": [
+          "Default"
+        ]
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "d2ede57e-9a96-422a-bbc6-3483693510a6"
+        }
+      }
+    },
+    "LaunchConfiguration": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "AssociatePublicIpAddress": true,
+        "ImageId": "ami-880f12e2",
+        "InstanceType": "c4.large",
+        "KeyName": "devops",
+        "EbsOptimized": true,
+        "IamInstanceProfile": "lara-rancher-host",
+        "InstanceMonitoring": "true",
+        "SecurityGroups": [
+          {
+            "Ref": "SecurityGroupDockerHosts"
+          }
+        ],
+        "BlockDeviceMappings": [
+          {
+            "DeviceName": "/dev/sda1",
+            "Ebs": {
+              "VolumeSize": 32
+            }
+          }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "\n",
+              [
+                "#cloud-config",
+                "rancher:",
+                "  services:",
+                "    rancher-agent1:",
+                "      image: rancher/agent:v0.11.0",
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "      command: '",
+                      {
+                        "Ref": "RancherEnvironmentURL"
+                      },
+                      "'"
+                    ]
+                  ]
+                },
+                "      privileged: true",
+                "      volumes:",
+                "      - /var/run/docker.sock:/var/run/docker.sock",
+                "      environment:",
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "        CATTLE_HOST_LABELS: application=",
+                      {
+                        "Ref": "AWS::StackName"
+                      }
+                    ]
+                  ]
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "8519e0d1-52dd-4dbe-9161-1dcfac16e955"
+        }
+      }
+    },
+    "SecurityGroupDockerHosts": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "web hosts for lara docker ",
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "2376",
+            "ToPort": "2376",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "udp",
+            "FromPort": "4500",
+            "ToPort": "4500",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "udp",
+            "FromPort": "500",
+            "ToPort": "500",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "VpcId": "vpc-9c9714f9"
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "dd45a9f4-7c4e-4f19-ab26-e5313e27aa7f"
+        }
+      }
+    },
+    "SecurityGroupLoadBalancer": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "security group for lara load balancer",
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "443",
+            "ToPort": "443",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "VpcId": "vpc-9c9714f9"
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "0a26d9d6-baab-4a78-8dc2-29949333effd"
+        }
+      }
+    },
+    "ScalingScaleIn": {
+      "Type": "AWS::AutoScaling::ScalingPolicy",
+      "Properties": {
+        "PolicyType": "StepScaling",
+        "AdjustmentType": "PercentChangeInCapacity",
+        "MinAdjustmentStep": "1",
+        "StepAdjustments": [
+          {
+            "MetricIntervalLowerBound": -10,
+            "MetricIntervalUpperBound": 0,
+            "ScalingAdjustment": 0
+          },
+          {
+            "MetricIntervalLowerBound": -20,
+            "MetricIntervalUpperBound": -10,
+            "ScalingAdjustment": -10
+          },
+          {
+            "MetricIntervalUpperBound": -20,
+            "ScalingAdjustment": -30
+          }
+        ],
+        "AutoScalingGroupName": {
+          "Ref": "AutoScaler"
+        }
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "ef8be016-eb6d-4f2e-9ec0-a10b2312e87a"
+        }
+      }
+    },
+    "ScalingScaleOut": {
+      "Type": "AWS::AutoScaling::ScalingPolicy",
+      "Properties": {
+        "PolicyType": "StepScaling",
+        "AdjustmentType": "ChangeInCapacity",
+        "EstimatedInstanceWarmup": 720,
+        "StepAdjustments": [
+          {
+            "MetricIntervalLowerBound": 0,
+            "MetricIntervalUpperBound": 20,
+            "ScalingAdjustment": 1
+          },
+          {
+            "MetricIntervalLowerBound": 20,
+            "ScalingAdjustment": 2
+          }
+        ],
+        "AutoScalingGroupName": {
+          "Ref": "AutoScaler"
+        }
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "b3f7d0c5-1672-45a5-af15-fec4db0daf9d"
+        }
+      }
+    },
+    "AlarmHighCPU": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "ActionsEnabled": "true",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "EvaluationPeriods": "3",
+        "MetricName": "CPUUtilization",
+        "Namespace": "AWS/EC2",
+        "Period": "60",
+        "Statistic": "Average",
+        "Threshold": "30.0",
+        "AlarmActions": [
+          {
+            "Ref": "ScalingScaleOut"
+          }
+        ],
+        "Dimensions": [
+          {
+            "Name": "AutoScalingGroupName",
+            "Value": {
+              "Ref": "AutoScaler"
+            }
+          }
+        ]
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "a4656fe8-2053-47aa-b71b-4cca05bfa62c"
+        }
+      }
+    },
+    "AlarmLowCPU": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "ActionsEnabled": "true",
+        "ComparisonOperator": "LessThanThreshold",
+        "EvaluationPeriods": "2",
+        "MetricName": "CPUUtilization",
+        "Namespace": "AWS/EC2",
+        "Period": "300",
+        "Statistic": "Average",
+        "Threshold": "50.0",
+        "AlarmActions": [
+          {
+            "Ref": "ScalingScaleIn"
+          }
+        ],
+        "Dimensions": [
+          {
+            "Name": "AutoScalingGroupName",
+            "Value": {
+              "Ref": "AutoScaler"
+            }
+          }
+        ]
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "240e8a50-e5b8-405d-83d7-6813e6028ccf"
+        }
+      }
+    },
+    "DBIngress": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "DatabaseSecurityGroupId"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": "3306",
+        "ToPort": "3306",
+        "SourceSecurityGroupId": {
+          "Ref": "SecurityGroupDockerHosts"
+        }
+      }
+    }
+  },
+  "Description": "lara stack",
+  "Outputs": {
+    "ElasticLoadBalancerURL": {
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "http://",
+            {
+              "Fn::GetAtt": [
+                "ELB",
+                "DNSName"
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "Metadata": {
+    "AWS::CloudFormation::Designer": {
+      "0a26d9d6-baab-4a78-8dc2-29949333effd": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": -130,
+          "y": 130
+        },
+        "z": 1,
+        "embeds": []
+      },
+      "dd45a9f4-7c4e-4f19-ab26-e5313e27aa7f": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": -130,
+          "y": 210
+        },
+        "z": 1,
+        "embeds": []
+      },
+      "8519e0d1-52dd-4dbe-9161-1dcfac16e955": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": -30,
+          "y": 210
+        },
+        "z": 1,
+        "embeds": [],
+        "ismemberof": [
+          "dd45a9f4-7c4e-4f19-ab26-e5313e27aa7f"
+        ]
+      },
+      "d2ede57e-9a96-422a-bbc6-3483693510a6": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 80,
+          "y": 170
+        },
+        "z": 1,
+        "embeds": [],
+        "isconnectedto": [
+          "e49166cc-7af8-4830-bb88-ddbe3a991c8e"
+        ],
+        "isassociatedwith": [
+          "8519e0d1-52dd-4dbe-9161-1dcfac16e955"
+        ]
+      },
+      "b3f7d0c5-1672-45a5-af15-fec4db0daf9d": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 170,
+          "y": 120
+        },
+        "z": 1,
+        "embeds": [],
+        "isassociatedwith": [
+          "d2ede57e-9a96-422a-bbc6-3483693510a6"
+        ]
+      },
+      "a4656fe8-2053-47aa-b71b-4cca05bfa62c": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 280,
+          "y": 120
+        },
+        "z": 1,
+        "embeds": [],
+        "isrelatedto": [
+          "b3f7d0c5-1672-45a5-af15-fec4db0daf9d",
+          "d2ede57e-9a96-422a-bbc6-3483693510a6"
+        ]
+      },
+      "ef8be016-eb6d-4f2e-9ec0-a10b2312e87a": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 170,
+          "y": 220
+        },
+        "z": 1,
+        "embeds": [],
+        "isassociatedwith": [
+          "d2ede57e-9a96-422a-bbc6-3483693510a6"
+        ]
+      },
+      "240e8a50-e5b8-405d-83d7-6813e6028ccf": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 280,
+          "y": 220
+        },
+        "z": 1,
+        "embeds": [],
+        "isrelatedto": [
+          "ef8be016-eb6d-4f2e-9ec0-a10b2312e87a",
+          "d2ede57e-9a96-422a-bbc6-3483693510a6"
+        ]
+      },
+      "e49166cc-7af8-4830-bb88-ddbe3a991c8e": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": -30,
+          "y": 130
+        },
+        "z": 1,
+        "embeds": [],
+        "ismemberof": [
+          "0a26d9d6-baab-4a78-8dc2-29949333effd"
+        ]
+      }
+    }
+  },
+  "Parameters": {
+    "Environment": {
+      "Type": "String",
+      "Default": "staging",
+      "AllowedValues": [
+        "staging",
+        "production"
+      ],
+      "Description": "Enter staging or production. Default is staging."
+    },
+    "RancherEnvironmentURL": {
+      "Type": "String"
+    },
+    "SSLCertificateName": {
+      "Type": "String",
+      "AllowedValues": [
+        "star.concord.org",
+        "star.staging.concord.org"
+      ]
+    },
+    "DatabaseSecurityGroupId": {
+      "Type": "AWS::EC2::SecurityGroup::Id",
+      "Description": "Select security group of the RDS database. This security group will be modified to allow access by the EC2 instances in this stack"
+    }
+  },
+  "Mappings": {
+    "SSLCertificateMap": {
+      "star.concord.org": {
+        "Id": "arn:aws:iam::612297603577:server-certificate/cloudfront/E3JZ7YRBPKHWAC/cc.wildcard.until.2018"
+      },
+      "star.staging.concord.org": {
+        "Id": "arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560"
+      }
+    }
+  }
+}
