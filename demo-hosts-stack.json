@@ -114,18 +114,58 @@
         "VpcId": "vpc-9c9714f9"
       }
     },
-    "DBIngress": {
-      "Type": "AWS::EC2::SecurityGroupIngress",
+    "SecurityGroupDB": {
+      "Type": "AWS::EC2::SecurityGroup",
       "Properties": {
-        "GroupId": {
-          "Ref": "DatabaseSecurityGroupId"
-        },
-        "IpProtocol": "tcp",
-        "FromPort": "3306",
-        "ToPort": "3306",
-        "SourceSecurityGroupId": {
-          "Ref": "SecurityGroupDockerHosts"
-        }
+        "GroupDescription": "databases for demo hosts",
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "3306",
+            "ToPort": "3306",
+            "SourceSecurityGroupId": {
+              "Ref": "SecurityGroupDockerHosts"
+            }
+          }
+        ],
+        "VpcId": "vpc-9c9714f9"
+      }
+    },
+    "DemoDB": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "AllocatedStorage" : "1000",
+        "AutoMinorVersionUpgrade": true,
+        "AvailabilityZone": "us-east-1c",
+        "DBInstanceClass": "db.t2.medium",
+        "DBParameterGroupName": "lara-5-6",
+        "DBSubnetGroupName": "rds.vpc.subnet.group1",
+        "Engine": "MySQL",
+        "EngineVersion": "5.6.27",
+        "MasterUsername": { "Ref": "DBUserName" },
+        "MasterUserPassword": { "Ref": "DBPassword" },
+        "MultiAZ": false,
+        "PubliclyAccessible": false,
+        "StorageType": "gp2",
+        "Tags": [
+          {
+            "Key": "Contact",
+            "Value": "scytacki"
+          },
+          {
+            "Key": "Environment",
+            "Value": "demo"
+          }
+        ],
+        "VPCSecurityGroups": [
+          { "Ref": "SecurityGroupDB" }
+        ]
       }
     }
   },
@@ -134,9 +174,13 @@
     "RancherEnvironmentURL": {
       "Type": "String"
     },
-    "DatabaseSecurityGroupId": {
-      "Type": "AWS::EC2::SecurityGroup::Id",
-      "Description": "Select security group of the RDS database. This security group will be modified to allow access by the EC2 instances in this stack"
+    "DBUserName": {
+      "Type": "String",
+      "Description": "Username for the RDS database instance"
+    },
+    "DBPassword": {
+      "Type": "String",
+      "Description": "Password for the RDS database instance"
     }
   }
 }
