@@ -1,0 +1,142 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources": {
+    "DemoHost": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "AvailabilityZone": "us-east-1c",
+        "Tags": [
+          {
+            "Key": "Contact",
+            "Value": "scytacki"
+          },
+          {
+            "Key": "Environment",
+            "Value": "demo"
+          },
+          {
+            "Key": "Name",
+            "Value": "demo-host"
+          }
+        ],
+        "ImageId": "ami-880f12e2",
+        "InstanceType": "t2.medium",
+        "KeyName": "devops",
+        "IamInstanceProfile": "lara-rancher-host",
+        "Monitoring": "true",
+        "SubnetId": "subnet-7fb16326",
+        "SecurityGroupIds": [
+          {
+            "Ref": "SecurityGroupDockerHosts"
+          }
+        ],
+        "BlockDeviceMappings": [
+          {
+            "DeviceName": "/dev/sda1",
+            "Ebs": {
+              "VolumeSize": 32
+            }
+          }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "\n",
+              [
+                "#cloud-config",
+                "rancher:",
+                "  services:",
+                "    rancher-agent1:",
+                "      image: rancher/agent:v0.11.0",
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "      command: '",
+                      {
+                        "Ref": "RancherEnvironmentURL"
+                      },
+                      "'"
+                    ]
+                  ]
+                },
+                "      privileged: true",
+                "      volumes:",
+                "      - /var/run/docker.sock:/var/run/docker.sock"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "SecurityGroupDockerHosts": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "web hosts for lara docker ",
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "2376",
+            "ToPort": "2376",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "udp",
+            "FromPort": "4500",
+            "ToPort": "4500",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "udp",
+            "FromPort": "500",
+            "ToPort": "500",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "VpcId": "vpc-9c9714f9"
+      }
+    },
+    "DBIngress": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "DatabaseSecurityGroupId"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": "3306",
+        "ToPort": "3306",
+        "SourceSecurityGroupId": {
+          "Ref": "SecurityGroupDockerHosts"
+        }
+      }
+    }
+  },
+  "Description": "demo hosts stack",
+  "Parameters": {
+    "RancherEnvironmentURL": {
+      "Type": "String"
+    },
+    "DatabaseSecurityGroupId": {
+      "Type": "AWS::EC2::SecurityGroup::Id",
+      "Description": "Select security group of the RDS database. This security group will be modified to allow access by the EC2 instances in this stack"
+    }
+  }
+}
