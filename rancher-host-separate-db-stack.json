@@ -16,7 +16,7 @@
           },
           {
             "Key": "Name",
-            "Value": "demo-host"
+            "Value": "rancher-host"
           }
         ],
         "ImageId": "ami-880f12e2",
