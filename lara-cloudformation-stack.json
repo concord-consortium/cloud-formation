@@ -24,7 +24,7 @@
         "CrossZone": "true",
         "SecurityGroups": [
           {
-            "Ref": "SecurityGroupLoadBalancer"
+            "Ref": "LoadBalancerSG"
           }
         ],
         "Listeners": [
@@ -144,7 +144,7 @@
         "InstanceMonitoring": "true",
         "SecurityGroups": [
           {
-            "Ref": "SecurityGroupDockerHosts"
+            "Ref": "ApplicationHostsSG"
           }
         ],
         "BlockDeviceMappings": [
@@ -181,17 +181,7 @@
                 "      volumes:",
                 "      - /var/run/docker.sock:/var/run/docker.sock",
                 "      environment:",
-                {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "        CATTLE_HOST_LABELS: application=",
-                      {
-                        "Ref": "AWS::StackName"
-                      }
-                    ]
-                  ]
-                }
+                "        CATTLE_HOST_LABELS: org.concord.role=application"
               ]
             ]
           }
@@ -203,7 +193,7 @@
         }
       }
     },
-    "SecurityGroupDockerHosts": {
+    "ApplicationHostsSG": {
       "Type": "AWS::EC2::SecurityGroup",
       "Properties": {
         "GroupDescription": "web hosts for lara docker ",
@@ -253,7 +243,63 @@
         }
       }
     },
-    "SecurityGroupLoadBalancer": {
+    "ManagerHostSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "web hosts for lara docker ",
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "2376",
+            "ToPort": "2376",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "udp",
+            "FromPort": "4500",
+            "ToPort": "4500",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "udp",
+            "FromPort": "500",
+            "ToPort": "500",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1194",
+            "ToPort": "1194",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "VpcId": "vpc-9c9714f9"
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "dd45a9f4-7c4e-4f19-ab26-e5313e27aa7f"
+        }
+      }
+    },
+    "LoadBalancerSG": {
       "Type": "AWS::EC2::SecurityGroup",
       "Properties": {
         "GroupDescription": "security group for lara load balancer",
@@ -322,7 +368,7 @@
       "Properties": {
         "PolicyType": "StepScaling",
         "AdjustmentType": "ChangeInCapacity",
-        "EstimatedInstanceWarmup": 720,
+        "EstimatedInstanceWarmup": 900,
         "StepAdjustments": [
           {
             "MetricIntervalLowerBound": 0,
@@ -416,7 +462,67 @@
         "FromPort": "3306",
         "ToPort": "3306",
         "SourceSecurityGroupId": {
-          "Ref": "SecurityGroupDockerHosts"
+          "Ref": "ApplicationHostsSG"
+        }
+      }
+    },
+    "ManagerInstance": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "AvailabilityZone": "us-east-1c",
+        "Tags": [
+          {
+            "Key": "Contact",
+            "Value": "scytacki"
+          },
+          {
+            "Key": "Environment",
+            "Value": { "Ref": "Environment" }
+          },
+          {
+            "Key": "Name",
+            "Value": { "Fn::Join": ["", [ { "Ref": "AWS::StackName"}, "-manager"] ] }
+          }
+        ],
+        "ImageId": "ami-880f12e2",
+        "InstanceType": "t2.micro",
+        "KeyName": "devops",
+        "Monitoring": "true",
+        "SubnetId": "subnet-7fb16326",
+        "SecurityGroupIds": [
+          {
+            "Ref": "ManagerHostSG"
+          }
+        ],
+        "BlockDeviceMappings": [
+          {
+            "DeviceName": "/dev/sda1",
+            "Ebs": {
+              "VolumeSize": 32
+            }
+          }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "\n",
+              [
+                "#cloud-config",
+                "rancher:",
+                "  services:",
+                "    rancher-agent1:",
+                "      image: rancher/agent:v0.11.0",
+                { "Fn::Join": [ "", [
+                "      command: '", { "Ref": "RancherEnvironmentURL" }, "'"
+                ] ] },
+                "      privileged: true",
+                "      volumes:",
+                "      - /var/run/docker.sock:/var/run/docker.sock",
+                "      environment:",
+                "        CATTLE_HOST_LABELS: org.concord.role=manager"
+              ]
+            ]
+          }
         }
       }
     }
