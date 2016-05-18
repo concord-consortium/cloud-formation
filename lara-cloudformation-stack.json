@@ -126,6 +126,15 @@
           "Default"
         ]
       },
+      "UpdatePolicy" : {
+        "AutoScalingRollingUpdate" : {
+          "MinInstancesInService": 1,
+          "PauseTime": "PT15M"
+        },
+        "AutoScalingScheduledAction" : {
+          "IgnoreUnmodifiedGroupSizeProperties" : "true"
+        }
+      },
       "Metadata": {
         "AWS::CloudFormation::Designer": {
           "id": "d2ede57e-9a96-422a-bbc6-3483693510a6"
@@ -164,7 +173,7 @@
                 "rancher:",
                 "  services:",
                 "    rancher-agent1:",
-                "      image: rancher/agent:v0.11.0",
+                "      image: rancher/agent:v1.0.1",
                 {
                   "Fn::Join": [
                     "",
@@ -180,6 +189,7 @@
                 "      privileged: true",
                 "      volumes:",
                 "      - /var/run/docker.sock:/var/run/docker.sock",
+                "      - /var/lib/rancher:/var/lib/rancher",
                 "      environment:",
                 "        CATTLE_HOST_LABELS: org.concord.role=application"
               ]
