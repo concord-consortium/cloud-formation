@@ -129,7 +129,7 @@
       "UpdatePolicy" : {
         "AutoScalingRollingUpdate" : {
           "MinInstancesInService": 1,
-          "PauseTime": "PT15M"
+          "PauseTime": "PT20M"
         },
         "AutoScalingScheduledAction" : {
           "IgnoreUnmodifiedGroupSizeProperties" : "true"
@@ -145,7 +145,7 @@
       "Type": "AWS::AutoScaling::LaunchConfiguration",
       "Properties": {
         "AssociatePublicIpAddress": true,
-        "ImageId": "ami-880f12e2",
+        "ImageId": "ami-812ec0ec",
         "InstanceType": "c4.large",
         "KeyName": "devops",
         "EbsOptimized": true,
@@ -494,7 +494,7 @@
             "Value": { "Fn::Join": ["", [ { "Ref": "AWS::StackName"}, "-manager"] ] }
           }
         ],
-        "ImageId": "ami-880f12e2",
+        "ImageId": "ami-812ec0ec",
         "InstanceType": "t2.micro",
         "KeyName": "devops",
         "Monitoring": "true",
@@ -521,13 +521,14 @@
                 "rancher:",
                 "  services:",
                 "    rancher-agent1:",
-                "      image: rancher/agent:v0.11.0",
+                "      image: rancher/agent:v1.0.1",
                 { "Fn::Join": [ "", [
                 "      command: '", { "Ref": "RancherEnvironmentURL" }, "'"
                 ] ] },
                 "      privileged: true",
                 "      volumes:",
                 "      - /var/run/docker.sock:/var/run/docker.sock",
+                "      - /var/lib/rancher:/var/lib/rancher",
                 "      environment:",
                 "        CATTLE_HOST_LABELS: org.concord.role=manager"
               ]
