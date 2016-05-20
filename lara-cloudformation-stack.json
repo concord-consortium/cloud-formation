@@ -129,7 +129,10 @@
       "UpdatePolicy" : {
         "AutoScalingRollingUpdate" : {
           "MinInstancesInService": 1,
-          "PauseTime": "PT20M"
+          "PauseTime": "PT20M",
+          "SuspendProcesses": [
+            "AlarmNotification"
+          ]
         },
         "AutoScalingScheduledAction" : {
           "IgnoreUnmodifiedGroupSizeProperties" : "true"
@@ -160,7 +163,7 @@
           {
             "DeviceName": "/dev/sda1",
             "Ebs": {
-              "VolumeSize": 32
+              "VolumeSize": 48
             }
           }
         ],
@@ -174,18 +177,9 @@
                 "  services:",
                 "    rancher-agent1:",
                 "      image: rancher/agent:v1.0.1",
-                {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "      command: '",
-                      {
-                        "Ref": "RancherEnvironmentURL"
-                      },
-                      "'"
-                    ]
-                  ]
-                },
+                { "Fn::Join": [ "", [
+                "      command: '", { "Ref": "RancherEnvironmentURL" }, "'"
+                ] ] },
                 "      privileged: true",
                 "      volumes:",
                 "      - /var/run/docker.sock:/var/run/docker.sock",
