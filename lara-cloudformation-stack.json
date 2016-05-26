@@ -19,7 +19,7 @@
           "Timeout": "300"
         },
         "ConnectionSettings": {
-          "IdleTimeout": "60"
+          "IdleTimeout": "180"
         },
         "CrossZone": "true",
         "SecurityGroups": [
@@ -85,6 +85,9 @@
         "HealthCheckType": "EC2",
         "MaxSize": "6",
         "MinSize": "1",
+        "MetricsCollection": [
+          { "Granularity": "1Minute" }
+        ],
         "VPCZoneIdentifier": [
           "subnet-7fb16326"
         ],
