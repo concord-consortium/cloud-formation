@@ -1,33 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Resources:
-  ELB:
-    Type: AWS::ElasticLoadBalancing::LoadBalancer
+  ELBv2:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Subnets: [subnet-7fb16326]
-      HealthCheck:
-        HealthyThreshold: '2'
-        Interval: '5'
-        Target: HTTP:80/rancher-loadbalancer-test
-        Timeout: '2'
-        UnhealthyThreshold: '2'
-      ConnectionDrainingPolicy:
-        Enabled: 'true'
-        Timeout: '300'
-      ConnectionSettings:
-        IdleTimeout: '180'
-      CrossZone: 'true'
+      Subnets: [subnet-7fb16326, subnet-09c2dd40]
       SecurityGroups: [!Ref 'LoadBalancerSG']
-      Listeners:
-      - InstancePort: '80'
-        LoadBalancerPort: '80'
-        Protocol: HTTP
-        InstanceProtocol: HTTP
-      - InstancePort: '80'
-        LoadBalancerPort: '443'
-        Protocol: HTTPS
-        InstanceProtocol: HTTP
-        SSLCertificateId: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName',
-          Id]
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '180'
       Tags:
       - Key: Project
         Value: lara
@@ -35,9 +15,62 @@ Resources:
         Value: !Ref 'Environment'
       - Key: Contact
         Value: scytacki
-    Metadata:
-      AWS::CloudFormation::Designer:
-        id: e49166cc-7af8-4830-bb88-ddbe3a991c8e
+
+  ELBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: '5'
+      HealthCheckPath: /rancher-loadbalancer-test
+      HealthCheckPort: '80'
+      HealthCheckProtocol: HTTP
+      HealthyThresholdCount: '2'
+      UnhealthyThresholdCount: '2'
+      HealthCheckTimeoutSeconds: '2'
+      Port: '80'
+      Protocol: HTTP
+      Tags:
+      - Key: Project
+        Value: lara
+      - Key: Environment
+        Value: !Ref 'Environment'
+      - Key: Contact
+        Value: scytacki
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '300'
+      VpcId: vpc-9c9714f9
+
+  ELBListener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+      - CertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
+      DefaultActions:
+      - TargetGroupArn: !Ref 'ELBTargetGroup'
+        Type: forward
+      LoadBalancerArn: !Ref 'ELBv2'
+      Port: '443'
+      Protocol: HTTPS
+  ELBListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !Ref 'ELBTargetGroup'
+        Type: forward
+      LoadBalancerArn: !Ref 'ELBv2'
+      Port: '80'
+      Protocol: HTTP
+
+  ELBDNS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt [ELBv2, DNSName]
+        HostedZoneId: !GetAtt [ELBv2, CanonicalHostedZoneID]
+      HostedZoneName: concord.org.
+      Name: !Ref 'DomainName'
+      Type: A
+
   AutoScaler:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -52,7 +85,6 @@ Resources:
       - Granularity: 1Minute
       VPCZoneIdentifier: [subnet-7fb16326]
       LaunchConfigurationName: !Ref 'LaunchConfiguration'
-      LoadBalancerNames: [!Ref 'ELB']
       Tags:
       - Key: Contact
         Value: scytacki
@@ -66,6 +98,7 @@ Resources:
       - Key: Project
         Value: lara
         PropagateAtLaunch: true
+      TargetGroupARNs: [!Ref 'ELBTargetGroup']
       TerminationPolicies: [Default]
     UpdatePolicy:
       AutoScalingRollingUpdate:
@@ -74,9 +107,6 @@ Resources:
         SuspendProcesses: [AlarmNotification]
       AutoScalingScheduledAction:
         IgnoreUnmodifiedGroupSizeProperties: 'true'
-    Metadata:
-      AWS::CloudFormation::Designer:
-        id: d2ede57e-9a96-422a-bbc6-3483693510a6
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -107,9 +137,6 @@ Resources:
                   - /var/lib/rancher:/var/lib/rancher
                   environment:
                     CATTLE_HOST_LABELS: org.concord.role=application
-    Metadata:
-      AWS::CloudFormation::Designer:
-        id: 8519e0d1-52dd-4dbe-9161-1dcfac16e955
   ApplicationHostsSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -139,9 +166,6 @@ Resources:
         ToPort: '500'
         CidrIp: 0.0.0.0/0
       VpcId: vpc-9c9714f9
-    Metadata:
-      AWS::CloudFormation::Designer:
-        id: dd45a9f4-7c4e-4f19-ab26-e5313e27aa7f
   ManagerHostSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -175,9 +199,6 @@ Resources:
         ToPort: '1194'
         CidrIp: 0.0.0.0/0
       VpcId: vpc-9c9714f9
-    Metadata:
-      AWS::CloudFormation::Designer:
-        id: dd45a9f4-7c4e-4f19-ab26-e5313e27aa7f
   LoadBalancerSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -195,9 +216,6 @@ Resources:
         ToPort: '443'
         CidrIp: 0.0.0.0/0
       VpcId: vpc-9c9714f9
-    Metadata:
-      AWS::CloudFormation::Designer:
-        id: 0a26d9d6-baab-4a78-8dc2-29949333effd
   ScalingScaleIn:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
@@ -211,9 +229,6 @@ Resources:
       - MetricIntervalUpperBound: -5
         ScalingAdjustment: -50
       AutoScalingGroupName: !Ref 'AutoScaler'
-    Metadata:
-      AWS::CloudFormation::Designer:
-        id: ef8be016-eb6d-4f2e-9ec0-a10b2312e87a
   ScalingScaleOut:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
@@ -227,9 +242,6 @@ Resources:
       - MetricIntervalLowerBound: 20
         ScalingAdjustment: 2
       AutoScalingGroupName: !Ref 'AutoScaler'
-    Metadata:
-      AWS::CloudFormation::Designer:
-        id: b3f7d0c5-1672-45a5-af15-fec4db0daf9d
   AlarmHighCPU:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -245,9 +257,6 @@ Resources:
       Dimensions:
       - Name: AutoScalingGroupName
         Value: !Ref 'AutoScaler'
-    Metadata:
-      AWS::CloudFormation::Designer:
-        id: a4656fe8-2053-47aa-b71b-4cca05bfa62c
   AlarmLowCPU:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -263,9 +272,6 @@ Resources:
       Dimensions:
       - Name: AutoScalingGroupName
         Value: !Ref 'AutoScaler'
-    Metadata:
-      AWS::CloudFormation::Designer:
-        id: 240e8a50-e5b8-405d-83d7-6813e6028ccf
   DBIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -313,98 +319,7 @@ Resources:
 Description: lara stack
 Outputs:
   ElasticLoadBalancerURL:
-    Value: !Join ['', ['http://', !GetAtt [ELB, DNSName]]]
-Metadata:
-  AWS::CloudFormation::Designer:
-    0a26d9d6-baab-4a78-8dc2-29949333effd:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: -130
-        y: 130
-      z: 1
-      embeds: []
-    dd45a9f4-7c4e-4f19-ab26-e5313e27aa7f:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: -130
-        y: 210
-      z: 1
-      embeds: []
-    8519e0d1-52dd-4dbe-9161-1dcfac16e955:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: -30
-        y: 210
-      z: 1
-      embeds: []
-      ismemberof: [dd45a9f4-7c4e-4f19-ab26-e5313e27aa7f]
-    d2ede57e-9a96-422a-bbc6-3483693510a6:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 80
-        y: 170
-      z: 1
-      embeds: []
-      isconnectedto: [e49166cc-7af8-4830-bb88-ddbe3a991c8e]
-      isassociatedwith: [8519e0d1-52dd-4dbe-9161-1dcfac16e955]
-    b3f7d0c5-1672-45a5-af15-fec4db0daf9d:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 170
-        y: 120
-      z: 1
-      embeds: []
-      isassociatedwith: [d2ede57e-9a96-422a-bbc6-3483693510a6]
-    a4656fe8-2053-47aa-b71b-4cca05bfa62c:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 280
-        y: 120
-      z: 1
-      embeds: []
-      isrelatedto: [b3f7d0c5-1672-45a5-af15-fec4db0daf9d, d2ede57e-9a96-422a-bbc6-3483693510a6]
-    ef8be016-eb6d-4f2e-9ec0-a10b2312e87a:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 170
-        y: 220
-      z: 1
-      embeds: []
-      isassociatedwith: [d2ede57e-9a96-422a-bbc6-3483693510a6]
-    240e8a50-e5b8-405d-83d7-6813e6028ccf:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 280
-        y: 220
-      z: 1
-      embeds: []
-      isrelatedto: [ef8be016-eb6d-4f2e-9ec0-a10b2312e87a, d2ede57e-9a96-422a-bbc6-3483693510a6]
-    e49166cc-7af8-4830-bb88-ddbe3a991c8e:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: -30
-        y: 130
-      z: 1
-      embeds: []
-      ismemberof: [0a26d9d6-baab-4a78-8dc2-29949333effd]
+    Value: !Join ['', ['http://', !GetAtt [ELBv2, DNSName]]]
 Parameters:
   Environment:
     Type: String
@@ -413,13 +328,21 @@ Parameters:
     Description: Enter staging or production. Default is staging.
   RancherEnvironmentURL:
     Type: String
+    Description: The URL to the rancher environment which is used to add new hosts into
+      the environment.
   SSLCertificateName:
     Type: String
     AllowedValues: [star.concord.org, star.staging.concord.org]
+    Description: Two certificates are registered with AWS choose which one to use for the
+      load balancer
   DatabaseSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
     Description: Select security group of the RDS database. This security group will
       be modified to allow access by the EC2 instances in this stack
+  DomainName:
+    Type: String
+    Description: The DNS name that will be created or updated to point at the load
+      balancer
 Mappings:
   SSLCertificateMap:
     star.concord.org:
