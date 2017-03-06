@@ -1,0 +1,359 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: lara ecs stack
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    AllowedValues: [staging, production]
+    Description: Enter staging or production. Default is staging.
+  SSLCertificateName:
+    Type: String
+    AllowedValues: [star.concord.org, star.staging.concord.org]
+    Description: Two certificates are registered with AWS choose which one to use for the
+      load balancer
+  DatabaseSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Select security group of the RDS database. This security group will
+      be modified to allow access by the EC2 instances in this stack
+  ClusterContainersSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Select security group of the Cluster containers. This security group will
+      be added to the DataSecurity group to allow them to access it.
+  DomainName:
+    Type: String
+    Description: The DNS name that will be created or updated to point at the load
+      balancer
+  # a better approach here would be to ask for the CloudFormation cluster stack then
+  # we can pull out the cluster name and cluster security group
+  ClusterName:
+    Type: String
+    Description: The ECS cluster to this application to
+
+  AddFakeAuthProvider:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Description: The LARA Oauth2 code requires two authentication providers
+      in some places of the code, so if you are only going to use one then set
+      this to true
+  ItsiDemoSecret:
+    Type: String
+    Description: The OAuth2 key to authenticate via itsi-demo, if this is not set itsi-demo
+      will not be configured.
+  LearnDockerSecret:
+    Type: String
+    Description: The OAuth2 key to authenticate via learn-docker, if this is not set itsi-demo
+      will not be configured.
+  LearnStagingSecret:
+    Type: String
+    Description: The OAuth2 key to authenticate via learn.staging, if this is not set itsi-demo
+      will not be configured.
+  CRaterPassword:
+    Type: String
+  DbHost:
+    Type: String
+    Description: The hostname of the database. Template assumes database name is portal.
+  DbPassword:
+    Type: String
+    Description: The password of the database. Template assumes username is master.
+  NewRelicAppName:
+    Type: String
+    Description: App name to show in NewRelic
+  NewRelicLicenseKey:
+    Type: String
+  NumUnicornProcesses:
+    Type: String
+    Description: Number of unicorn processes to start up. Most people recommend
+      2 times the number of cores. Since we are containerized it might be best to
+      leave this at 1, and just have 2 container per core. That not take advantage
+      of the pre_fork feature of unicorn, but we aren't using that right now.
+  RollbarsKey:
+    Type: String
+  RailsSecretToken:
+    Type: String
+  SesKey:
+    Type: String
+    Description: key to connect to AWS SES for email
+  SesSecret:
+    Type: String
+  LabBookProviderURL:
+    Type: String
+    Description: URL to the labbook service for use in the labbook items
+  ModelJsonListURL:
+    Type: String
+    Description: URL of the model json used in ITSI authoring. It is typically
+      a URL to a portal model library.
+  CloudWatchLogGroup:
+    Type: String
+    Description: logging group in cloud watch where the aws logs will be sent
+
+Conditions:
+  AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
+  AddItsiDemo: !Not [!Equals [!Ref ItsiDemoSecret, ""]]
+  AddLearnDocker: !Not [!Equals [!Ref LearnDockerSecret, ""]]
+  AddLearnStaging: !Not [!Equals [!Ref LearnStagingSecret, ""]]
+Resources:
+  ELBv2:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets: [subnet-7fb16326,subnet-09c2dd40]
+      SecurityGroups: [!Ref 'LoadBalancerSG']
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '180'
+
+  ELBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: '30'
+      HealthCheckProtocol: HTTP
+      HealthyThresholdCount: '2'
+      UnhealthyThresholdCount: '2'
+      HealthCheckTimeoutSeconds: '5'
+      # even though this is set to 80 the actual port will
+      # be overriden by each of the containers that is added
+      # to the target group
+      Port: '80'
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '300'
+      VpcId: vpc-9c9714f9
+
+  ELBListener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+      - CertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
+      DefaultActions:
+      - TargetGroupArn: !Ref 'ELBTargetGroup'
+        Type: forward
+      LoadBalancerArn: !Ref 'ELBv2'
+      Port: '443'
+      Protocol: HTTPS
+  ELBListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !Ref 'ELBTargetGroup'
+        Type: forward
+      LoadBalancerArn: !Ref 'ELBv2'
+      Port: '80'
+      Protocol: HTTP
+
+  ELBDNS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt [ELBv2, DNSName]
+        HostedZoneId: !GetAtt [ELBv2, CanonicalHostedZoneID]
+      HostedZoneName: concord.org.
+      Name: !Ref 'DomainName'
+      Type: A
+
+  LaraWebTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: LaraWebTask
+      ContainerDefinitions:
+      - Name: LaraContainer
+        Image: "concordconsortium/lara:v1.18.0-pre.1"
+        Cpu: "1024"
+        PortMappings:
+        - ContainerPort: '80'
+        Command:
+        - "./docker/prod/run.sh"
+        Memory: "500"
+        Essential: "true"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-region: us-east-1
+            awslogs-group: !Ref CloudWatchLogGroup
+            awslogs-stream-prefix: lara
+        Environment:
+        - Name: CONCORD_CONFIGURED_PORTALS
+          Value: !Join
+          - ' '
+          - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
+            - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
+            - !If [ AddLearnDocker, LEARN_DOCKER_STAGING, !Ref 'AWS::NoValue']
+            - !If [ AddItsiDemo, ITSI_DEMO, !Ref 'AWS::NoValue']
+
+        # fake auth provider config
+        - !If
+          - AddFakeAuthProviderCond
+          - Name: CONCORD_HAS_STAGING_CLIENT_ID
+            Value: localhost
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddFakeAuthProviderCond
+          - Name: CONCORD_HAS_STAGING_CLIENT_SECRET
+            Value: unknown
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddFakeAuthProviderCond
+          - Name: CONCORD_HAS_STAGING_DISPLAY_NAME
+            Value: Do NOT Use Please
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddFakeAuthProviderCond
+          - Name: CONCORD_HAS_STAGING_URL
+            Value: http://has.staging.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # itsi demo configuration
+        - !If
+          - AddItsiDemo
+          - Name: CONCORD_ITSI_DEMO_CLIENT_ID
+            Value: itsi-demo
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddItsiDemo
+          - Name: CONCORD_ITSI_DEMO_CLIENT_SECRET
+            Value: !Ref ItsiDemoSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddItsiDemo
+          - Name: CONCORD_ITSI_DEMO_URL
+            Value: http://itsi.portal-demo.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # learn docker staging configuration
+        - !If
+          - AddLearnDocker
+          - Name: CONCORD_LEARN_DOCKER_STAGING_CLIENT_ID
+            Value: authoring-docker
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddLearnDocker
+          - Name: CONCORD_LEARN_DOCKER_STAGING_CLIENT_SECRET
+            Value: !Ref LearnDockerSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddLearnDocker
+          - Name: CONCORD_LEARN_DOCKER_STAGING_URL
+            Value: https://learn-docker.staging.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # learn staging configuration
+        - !If
+          - AddLearnStaging
+          - Name: CONCORD_LEARN_STAGING_CLIENT_ID
+            Value: authoring
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddLearnStaging
+          - Name: CONCORD_LEARN_STAGING_CLIENT_SECRET
+            Value: !Ref LearnStagingSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddLearnStaging
+          - Name: CONCORD_LEARN_STAGING_URL
+            Value: https://learn.staging.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        - Name: C_RATER_CLIENT_ID
+          Value: CONCORD
+        - Name: C_RATER_PASSWORD
+          Value: !Ref CRaterPassword
+        - Name: C_RATER_USERNAME
+          Value: extSysCRTR02dev
+
+        - Name: DB_HOST
+          Value: !Ref DbHost
+        - Name: DB_NAME
+          Value: portal
+        - Name: DB_PASSWORD
+          Value: !Ref DbPassword
+        - Name: DB_USER
+          Value: master
+        - Name: NEW_RELIC_APP_NAME
+          Value: !Ref NewRelicAppName
+        - Name: NEW_RELIC_LICENSE_KEY
+          Value: !Ref NewRelicLicenseKey
+        - Name: NUM_UNICORN_PROCESSES
+          Value: !Ref NumUnicornProcesses
+        - Name: RAILS_STDOUT_LOGGING
+          Value: 'true'
+        - Name: ROLLBARS_KEY
+          Value: !Ref RollbarsKey
+        - Name: SECRET_TOKEN
+          Value: !Ref RailsSecretToken
+        - Name: SES_KEY
+          Value: !Ref SesKey
+        - Name: SES_SECRET
+          Value: !Ref SesSecret
+        - Name: UPLOAD_ONLY_MODEL_URLS
+          Value: https://models-resources.concord.org/itsi/upload_photo/index.html
+        - Name: LABBOOK_PROVIDER_URL
+          Value: !Ref LabBookProviderURL
+        - Name: MODEL_JSON_LIST_URL
+          Value: !Ref ModelJsonListURL
+
+  LaraWebService:
+    Type: AWS::ECS::Service
+    DependsOn:
+    - ELBListener443
+    - ELBListener80
+    Properties:
+      Role: 'ecsServiceRole'
+      TaskDefinition: !Ref "LaraWebTaskDefinition"
+      DesiredCount: 1
+      LoadBalancers:
+      - TargetGroupArn: !Ref "ELBTargetGroup"
+        ContainerPort: 80
+        ContainerName: LaraContainer
+      Cluster: !Ref "ClusterName"
+
+  LaraLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref CloudWatchLogGroup
+
+  LoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: security group for lara load balancer
+      SecurityGroupEgress:
+      - IpProtocol: '-1'
+        CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 0.0.0.0/0
+      VpcId: vpc-9c9714f9
+
+  DBIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'DatabaseSecurityGroupId'
+      IpProtocol: tcp
+      FromPort: '3306'
+      ToPort: '3306'
+      SourceSecurityGroupId: !Ref 'ClusterContainersSecurityGroupId'
+
+  ClusterIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'ClusterContainersSecurityGroupId'
+      IpProtocol: tcp
+      # these are the ephemerial ports created dyanmically when the task is
+      # deployed on the container instance
+      FromPort: '32768'
+      ToPort: '61000'
+      SourceSecurityGroupId: !Ref 'LoadBalancerSG'
+
+Outputs:
+  ElasticLoadBalancerURL:
+    Value: !Join ['', ['http://', !GetAtt [ELBv2, DNSName]]]
+Mappings:
+  SSLCertificateMap:
+    star.concord.org:
+      Id: arn:aws:iam::612297603577:server-certificate/cloudfront/E3JZ7YRBPKHWAC/cc.wildcard.until.2018
+    star.staging.concord.org:
+      Id: arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560
