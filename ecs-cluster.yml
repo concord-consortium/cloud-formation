@@ -32,6 +32,9 @@ Parameters:
   Environment:
     Type: String
     Description: Propigate this as a tag on created AWS resources
+  NewRelicLicenceKey:
+    Type: String
+    Description: Licence key to enable new relic server monitoring
 
 Resources:
   EcsSecurityGroup:
@@ -68,7 +71,15 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           echo ECS_CLUSTER=${EcsClusterName} >> /etc/ecs/ecs.config
-          yum install -y aws-cfn-bootstrap
+          rpm -Uvh https://yum.newrelic.com/pub/newrelic/el5/x86_64/newrelic-repo-5-3.noarch.rpm
+          yum install -y aws-cfn-bootstrap newrelic-sysmond
+          nrsysmond-config --set license_key=${NewRelicLicenceKey}
+          service newrelic-sysmond start
+          groupadd -r docker
+          usermod -a -G docker newrelic
+          service docker restart
+          service newrelic-sysmond restart
+          # notify cloudformation
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EcsInstanceAutoScaleGroup --region ${AWS::Region}
 
   EcsInstanceAutoScaleGroup:
@@ -108,18 +119,19 @@ Resources:
         MinSuccessfulInstancesPercent: "100"
       ResourceSignal:
         Timeout: PT15M
-    # TODO I don't yet know how the autoscaler handles a replace.  A replace is supposed
-    # to startup a new autoscaler and because of the MinSuccessfulInstancesPercent above
-    # the new autoscaler will need to have the same number of instances as the old one
-    # and then the old one is deleted.  What isn't clear is whether when the old is deleted
-    # if the old instances are terminated or just detached
+    # A rolling update is needed so the autoscaler uses the termination lifecycle of the
+    # instances. That way the lambda function can move the tasks to the new instance.
     UpdatePolicy:
-      # AutoScalingRollingUpdate:
-      #   MinInstancesInService: 1
-      #   PauseTime: PT20M
-      #   SuspendProcesses: [AlarmNotification, ScheduledActions]
+      AutoScalingRollingUpdate:
+        MinSuccessfulInstancesPercent: "100"
+        # this will make it wait on the cfn-signal above before marking the instance
+        # as successful
+        WaitOnResourceSignals: true
+        MinInstancesInService: 1
+        PauseTime: PT5M
+        SuspendProcesses: [AlarmNotification, ScheduledActions]
       AutoScalingReplacingUpdate:
-        WillReplace: true
+        WillReplace: false
       AutoScalingScheduledAction:
         IgnoreUnmodifiedGroupSizeProperties: 'true'
 
