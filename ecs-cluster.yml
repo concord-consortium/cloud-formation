@@ -89,7 +89,7 @@ Resources:
       LaunchConfigurationName: !Ref "EcsInstanceLaunchConfig"
       MetricsCollection:
         - Granularity: "1Minute"
-      MinSize: "1"
+      MinSize: "2"
       MaxSize: !Ref "AsgMaxSize"
       DesiredCapacity: !Ref "AsgInitialSize"
       NotificationConfigurations:
@@ -263,7 +263,7 @@ Resources:
       Dimensions:
       - Name: ClusterName
         Value: !Ref EcsCluster
-      ComparisonOperator: GreaterThanThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
       MetricName: CPUReservation
       Namespace: AWS/ECS
 
