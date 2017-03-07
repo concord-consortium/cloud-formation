@@ -358,28 +358,28 @@ Resources:
       RoleARN: !GetAtt AutoscalingRole.Arn
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
-  LaraWebScalingPolicy:
+  LaraWebScaleUpPolicy:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
-      PolicyName: AStepPolicy
+      PolicyName: StepPolicyUpPolicy
       PolicyType: StepScaling
       ScalingTargetId: !Ref 'LaraWebScalingTarget'
       StepScalingPolicyConfiguration:
         AdjustmentType: PercentChangeInCapacity
-        Cooldown: 60
+        Cooldown: 240
         MetricAggregationType: Average
         StepAdjustments:
         - MetricIntervalLowerBound: 0
-          ScalingAdjustment: 200
+          ScalingAdjustment: 100
   LaraWebAlarmScaleUp:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      EvaluationPeriods: '1'
       Statistic: Average
-      Threshold: '55'
+      Threshold: '75'
       AlarmDescription: Alarm if our Service is working too hard.
+      EvaluationPeriods: '1'
       Period: '60'
-      AlarmActions: [!Ref 'LaraWebScalingPolicy']
+      AlarmActions: [!Ref 'LaraWebScaleUpPolicy']
       Namespace: AWS/ECS
       Dimensions:
       - Name: ClusterName
@@ -388,6 +388,54 @@ Resources:
         Value: !GetAtt LaraWebService.Name
       ComparisonOperator: GreaterThanThreshold
       MetricName: CPUUtilization
+
+  LaraWebScaleDownPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: StepPolicyDownPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref 'LaraWebScalingTarget'
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        # As far as I can tell the cooldown period doesn't start until the service
+        # has actually decreased. That decrease doesn't happen until the
+        # connections have been drained from the tasks. And during that draining the
+        # CPUUtilization metric will not really change. The old task will be doing less
+        # but the other tasks will be doing more. Then when the old task is shutdown
+        # the metric will change. So the cooldown needs to be long enough to make sure
+        # the metric represents the full time of the lower capacity.
+        Cooldown: 300
+        MetricAggregationType: Average
+        StepAdjustments:
+        - MetricIntervalUpperBound: 0
+          ScalingAdjustment: '-1'
+  LaraWebAlarmScaleDown:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      # the CPUUtilization metric is agregated across all tasks in the service
+      # so the average will be different than the maxium even for a period of 1 second
+      # If just one task is running hard then the maxium will be high even though the
+      # other tasks are barely running.
+      Statistic: Average
+      Threshold: '35'
+      AlarmDescription: Alarm if our Service is not working enough.
+      # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
+      # this approach helps offset a running average affecting the responsiveness.
+      # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
+      # could be below 35%. However with 5 evaluation periods, then the 49% will cancel
+      # the alarm.
+      EvaluationPeriods: '5'
+      Period: '60'
+      AlarmActions: [!Ref 'LaraWebScaleDownPolicy']
+      Namespace: AWS/ECS
+      Dimensions:
+      - Name: ClusterName
+        Value: !Ref ClusterName
+      - Name: ServiceName
+        Value: !GetAtt LaraWebService.Name
+      ComparisonOperator: LessThanThreshold
+      MetricName: CPUUtilization
+
   AutoscalingRole:
     Type: AWS::IAM::Role
     Properties:
