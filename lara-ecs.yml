@@ -348,6 +348,66 @@ Resources:
       ToPort: '61000'
       SourceSecurityGroupId: !Ref 'LoadBalancerSG'
 
+  LaraWebScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: LaraWebService
+    Properties:
+      MaxCapacity: 10
+      MinCapacity: 1
+      ResourceId: !Sub "service/${ClusterName}/${LaraWebService.Name}"
+      RoleARN: !GetAtt AutoscalingRole.Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+  LaraWebScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: AStepPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref 'LaraWebScalingTarget'
+      StepScalingPolicyConfiguration:
+        AdjustmentType: PercentChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+        - MetricIntervalLowerBound: 0
+          ScalingAdjustment: 200
+  LaraWebAlarmScaleUp:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '55'
+      AlarmDescription: Alarm if our Service is working too hard.
+      Period: '60'
+      AlarmActions: [!Ref 'LaraWebScalingPolicy']
+      Namespace: AWS/ECS
+      Dimensions:
+      - Name: ClusterName
+        Value: !Ref ClusterName
+      - Name: ServiceName
+        Value: !GetAtt LaraWebService.Name
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
+  AutoscalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [application-autoscaling.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: service-autoscaling
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: ['application-autoscaling:*', 'cloudwatch:DescribeAlarms', 'cloudwatch:PutMetricAlarm',
+              'ecs:DescribeServices', 'ecs:UpdateService']
+            Resource: '*'
+
+
 Outputs:
   ElasticLoadBalancerURL:
     Value: !Join ['', ['http://', !GetAtt [ELBv2, DNSName]]]
