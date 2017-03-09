@@ -23,6 +23,9 @@ Parameters:
   AsgMaxSize:
     Type: Number
     Description: Maxium size of ECS Cluster Auto Scaler
+  AsgMinSize:
+    Type: Number
+    Description: Minium size of ECS Cluster Auto Scaler
   AsgInitialSize:
     Type: Number
     Description: Initial desired size of ECS Cluster Auto Scaler
@@ -89,8 +92,8 @@ Resources:
       LaunchConfigurationName: !Ref "EcsInstanceLaunchConfig"
       MetricsCollection:
         - Granularity: "1Minute"
-      MinSize: "2"
-      MaxSize: !Ref "AsgMaxSize"
+      MinSize: !Ref AsgMinSize
+      MaxSize: !Ref AsgMaxSize
       DesiredCapacity: !Ref "AsgInitialSize"
       NotificationConfigurations:
       - TopicARN: !Ref "AutoScaleSNSTopic"
@@ -244,8 +247,23 @@ Resources:
     Properties:
       AdjustmentType: ChangeInCapacity
       AutoScalingGroupName: !Ref EcsInstanceAutoScaleGroup
-      Cooldown: '300'
-      ScalingAdjustment: '1'
+      # Step scaling skips any cooldown period. As long as the difference between the
+      # desired capacity and the current capacity matches the scaling adjustment then no
+      # new scaling action will be taken.
+      PolicyType: StepScaling
+      # give the instance a minute before it is part of the total metrics, I believe
+      # this also delays the start of future scaleup events. We aren't using the
+      # autoscaler's metrics though, we are using the ECS cluster metric which will update
+      # instantly as soon as the instance registers itself with ECS.
+      EstimatedInstanceWarmup: '60'
+      StepAdjustments:
+        # from 66% to 76% scale up by one
+        - MetricIntervalLowerBound: 0
+          MetricIntervalUpperBound: 10
+          ScalingAdjustment: '1'
+        # from 76% to 100% scale up by two
+        - MetricIntervalLowerBound: 10
+          ScalingAdjustment: '2'
 
   CPUReservationHighAlert:
     Type: AWS::CloudWatch::Alarm
@@ -253,10 +271,10 @@ Resources:
       EvaluationPeriods: '1'
       Statistic: Maximum
       # CPU reservation is across the whole cluster, so with a period of 60 the max, min
-      # and average will all be the same. It is possible we can get some per instance
-      # CPUReservation and then agregrate it across them all, this would give us better
+      # and average will all be the same. There is no built in way to get per instance
+      # CPUReservation. If we had that it would give us better
       # flexibilty if we have a hetrogenous set of tasks running.
-      Threshold: '75'
+      Threshold: '66'
       Period: '60'
       AlarmActions:
       - !Ref CPUReservationScaleUpPolicy
@@ -272,19 +290,24 @@ Resources:
     Properties:
       AdjustmentType: ChangeInCapacity
       AutoScalingGroupName: !Ref EcsInstanceAutoScaleGroup
-      # this should be longer than the longest connection draining configured for any
-      # load balanced services.
-      Cooldown: '360'
-      ScalingAdjustment: '-1'
+      # Step scaling skips any cooldown period. As long as the difference between the
+      # desired capacity and the current capacity matches the scaling adjustment then no
+      # new scaling action will be taken. This seems to cause problems for us because the
+      # the CPUReservation does not update instantly, which leads to a second
+      # incorrect scale down. However because there is no cooldown period this problem
+      # is corrected quickly as long as the extra decrease causes a scale up alarm.
+      PolicyType: StepScaling
+      StepAdjustments:
+        - MetricIntervalUpperBound: 0
+          ScalingAdjustment: '-1'
 
   CPUReservationLowAlert:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      EvaluationPeriods: '1'
-      # The maxium is used here so we don't scale down if there are any spikes
-      Statistic: Maximum
+      EvaluationPeriods: '5'
+      Statistic: Average
       Threshold: '25'
-      Period: '300'
+      Period: '60'
       AlarmActions:
       - !Ref CPUReservationScaleDownPolicy
       Dimensions:
