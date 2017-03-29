@@ -33,19 +33,35 @@ Parameters:
     Type: String
     AllowedValues: ['true', 'false']
     Description: The LARA Oauth2 code requires two authentication providers
-      in some places of the code, so if you are only going to use one then set
+      in some places of the code, so if you are only going to configure one then set
       this to true
-  ItsiDemoSecret:
+  ITSIDemoSecret:
     Type: String
-    Description: The OAuth2 key to authenticate via itsi-demo, if this is not set itsi-demo
+    Description: The OAuth2 key to authenticate via itsi-demo. If this is not, set the portal
       will not be configured.
   LearnDockerSecret:
     Type: String
-    Description: The OAuth2 key to authenticate via learn-docker, if this is not set itsi-demo
+    Description: The OAuth2 key to authenticate via learn-docker. If this is not, set the portal
       will not be configured.
   LearnStagingSecret:
     Type: String
-    Description: The OAuth2 key to authenticate via learn.staging, if this is not set itsi-demo
+    Description: The OAuth2 key to authenticate via learn.staging. If this is not, set the portal
+      will not be configured.
+  AssessmentPortalSecret:
+    Type: String
+    Description: The OAuth2 key to authenticate via asessment.portal. If this is not, set the portal
+      will not be configured.
+  HASPortalSecret:
+    Type: String
+    Description: The OAuth2 key to authenticate via has.portal. If this is not set, the portal
+      will not be configured.
+  ITSIPortalSecret:
+    Type: String
+    Description: The OAuth2 key to authenticate via itsi.portal. If this is not set, the portal
+      will not be configured.
+  LearnPortalSecret:
+    Type: String
+    Description: The OAuth2 key to authenticate via learn. If this is not set, the portal
       will not be configured.
   CRaterPassword:
     Type: String
@@ -91,9 +107,14 @@ Parameters:
 
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
-  AddItsiDemo: !Not [!Equals [!Ref ItsiDemoSecret, ""]]
+  AddITSIDemo: !Not [!Equals [!Ref ITSIDemoSecret, ""]]
   AddLearnDocker: !Not [!Equals [!Ref LearnDockerSecret, ""]]
   AddLearnStaging: !Not [!Equals [!Ref LearnStagingSecret, ""]]
+  AddAssessmentPortal: !Not [!Equals [!Ref AssessmentPortalSecret, ""]]
+  AddHASPortal: !Not [!Equals [!Ref HASPortalSecret, ""]]
+  AddITSIPortal: !Not [!Equals [!Ref ITSIPortalSecret, ""]]
+  AddLearnPortal: !Not [!Equals [!Ref LearnPortalSecret, ""]]
+
 Resources:
   ELBv2:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -180,7 +201,11 @@ Resources:
           - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnDocker, LEARN_DOCKER_STAGING, !Ref 'AWS::NoValue']
-            - !If [ AddItsiDemo, ITSI_DEMO, !Ref 'AWS::NoValue']
+            - !If [ AddITSIDemo, ITSI_DEMO, !Ref 'AWS::NoValue']
+            - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
+            - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
+            - !If [ AddITSIPortal, ITSI, !Ref 'AWS::NoValue']
+            - !If [ AddLearnPortal, Learn, !Ref 'AWS::NoValue']
 
         # fake auth provider config
         - !If
@@ -206,17 +231,17 @@ Resources:
 
         # itsi demo configuration
         - !If
-          - AddItsiDemo
+          - AddITSIDemo
           - Name: CONCORD_ITSI_DEMO_CLIENT_ID
             Value: itsi-demo
           - !Ref 'AWS::NoValue'
         - !If
-          - AddItsiDemo
+          - AddITSIDemo
           - Name: CONCORD_ITSI_DEMO_CLIENT_SECRET
-            Value: !Ref ItsiDemoSecret
+            Value: !Ref ITSIDemoSecret
           - !Ref 'AWS::NoValue'
         - !If
-          - AddItsiDemo
+          - AddITSIDemo
           - Name: CONCORD_ITSI_DEMO_URL
             Value: http://itsi.portal-demo.concord.org/
           - !Ref 'AWS::NoValue'
@@ -253,6 +278,84 @@ Resources:
           - AddLearnStaging
           - Name: CONCORD_LEARN_STAGING_URL
             Value: https://learn.staging.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # assessment configuration
+        - !If
+          - AddAssessmentPortal
+          - Name: CONCORD_ASSESSMENT_CLIENT_ID
+            Value: authoring
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddAssessmentPortal
+          - Name: CONCORD_ASSESSMENT_CLIENT_SECRET
+            Value: !Ref AssessmentPortalSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddAssessmentPortal
+          - Name: CONCORD_ASSESSMENT_URL
+            Value: https://ngss-assessment.portal.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # has configuration
+        - !If
+          - AddHASPortal
+          - Name: CONCORD_HAS_CLIENT_ID
+            Value: authoring
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddHASPortal
+          - Name: CONCORD_HAS_CLIENT_SECRET
+            Value: !Ref HASPortalSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddHASPortal
+          - Name: CONCORD_HAS_DISPLAY_NAME
+            Value: HAS
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddHASPortal
+          - Name: CONCORD_HAS_URL
+            Value: https://has.portal.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # itsi configuration
+        - !If
+          - AddITSIPortal
+          - Name: CONCORD_ITSI_CLIENT_ID
+            Value: authoring
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddITSIPortal
+          - Name: CONCORD_ITSI_CLIENT_SECRET
+            Value: !Ref ITSIPortalSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddITSIPortal
+          - Name: CONCORD_ITSI_DISPLAY_NAME
+            Value: ITSI
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddITSIPortal
+          - Name: CONCORD_ITSI_URL
+            Value: https://itsi.portal.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # learn confiuration
+        - !If
+          - AddLearnPortal
+          - Name: CONCORD_LEARN_CLIENT_ID
+            Value: authoring
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddLearnPortal
+          - Name: CONCORD_LEARN_CLIENT_SECRET
+            Value: !Ref LearnPortalSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddLearnPortal
+          - Name: CONCORD_LEARN_URL
+            Value: https://learn.concord.org/
           - !Ref 'AWS::NoValue'
 
         - Name: C_RATER_CLIENT_ID
@@ -499,7 +602,11 @@ Resources:
           - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnDocker, LEARN_DOCKER_STAGING, !Ref 'AWS::NoValue']
-            - !If [ AddItsiDemo, ITSI_DEMO, !Ref 'AWS::NoValue']
+            - !If [ AddITSIDemo, ITSI_DEMO, !Ref 'AWS::NoValue']
+            - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
+            - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
+            - !If [ AddITSIPortal, ITSI, !Ref 'AWS::NoValue']
+            - !If [ AddLearnPortal, Learn, !Ref 'AWS::NoValue']
 
         # fake auth provider config
         - !If
@@ -525,17 +632,17 @@ Resources:
 
         # itsi demo configuration
         - !If
-          - AddItsiDemo
+          - AddITSIDemo
           - Name: CONCORD_ITSI_DEMO_CLIENT_ID
             Value: itsi-demo
           - !Ref 'AWS::NoValue'
         - !If
-          - AddItsiDemo
+          - AddITSIDemo
           - Name: CONCORD_ITSI_DEMO_CLIENT_SECRET
-            Value: !Ref ItsiDemoSecret
+            Value: !Ref ITSIDemoSecret
           - !Ref 'AWS::NoValue'
         - !If
-          - AddItsiDemo
+          - AddITSIDemo
           - Name: CONCORD_ITSI_DEMO_URL
             Value: http://itsi.portal-demo.concord.org/
           - !Ref 'AWS::NoValue'
@@ -572,6 +679,84 @@ Resources:
           - AddLearnStaging
           - Name: CONCORD_LEARN_STAGING_URL
             Value: https://learn.staging.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # assessment configuration
+        - !If
+          - AddAssessmentPortal
+          - Name: CONCORD_ASSESSMENT_CLIENT_ID
+            Value: authoring
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddAssessmentPortal
+          - Name: CONCORD_ASSESSMENT_CLIENT_SECRET
+            Value: !Ref AssessmentPortalSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddAssessmentPortal
+          - Name: CONCORD_ASSESSMENT_URL
+            Value: https://ngss-assessment.portal.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # has configuration
+        - !If
+          - AddHASPortal
+          - Name: CONCORD_HAS_CLIENT_ID
+            Value: authoring
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddHASPortal
+          - Name: CONCORD_HAS_CLIENT_SECRET
+            Value: !Ref HASPortalSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddHASPortal
+          - Name: CONCORD_HAS_DISPLAY_NAME
+            Value: HAS
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddHASPortal
+          - Name: CONCORD_HAS_URL
+            Value: https://has.portal.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # itsi configuration
+        - !If
+          - AddITSIPortal
+          - Name: CONCORD_ITSI_CLIENT_ID
+            Value: authoring
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddITSIPortal
+          - Name: CONCORD_ITSI_CLIENT_SECRET
+            Value: !Ref ITSIPortalSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddITSIPortal
+          - Name: CONCORD_ITSI_DISPLAY_NAME
+            Value: ITSI
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddITSIPortal
+          - Name: CONCORD_ITSI_URL
+            Value: https://itsi.portal.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # learn confiuration
+        - !If
+          - AddLearnPortal
+          - Name: CONCORD_LEARN_CLIENT_ID
+            Value: authoring
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddLearnPortal
+          - Name: CONCORD_LEARN_CLIENT_SECRET
+            Value: !Ref LearnPortalSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddLearnPortal
+          - Name: CONCORD_LEARN_URL
+            Value: https://learn.concord.org/
           - !Ref 'AWS::NoValue'
 
         - Name: C_RATER_CLIENT_ID
@@ -703,3 +888,44 @@ Mappings:
       Id: arn:aws:iam::612297603577:server-certificate/cloudfront/E3JZ7YRBPKHWAC/cc.wildcard.until.2018
     star.staging.concord.org:
       Id: arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: "App Config"
+      Parameters:
+      - LaraDockerImage
+      - CRaterPassword
+      - DbHost
+      - DbPassword
+      - LabBookProviderURL
+      - ModelJsonListURL
+      - NewRelicAppName
+      - NewRelicLicenseKey
+      - RailsSecretToken
+      - RollbarsKey
+      - SesKey
+      - SesSecret
+    - Label:
+        default: "Portals"
+      Parameters:
+      - AddFakeAuthProvider
+      - AssessmentPortalSecret
+      - HASPortalSecret
+      - ITSIDemoSecret
+      - ITSIPortalSecret
+      - LearnDockerSecret
+      - LearnPortalSecret
+      - LearnStagingSecret
+    - Label:
+        default: Infrastructure
+      Parameters:
+      - ClusterName
+      - ClusterContainersSecurityGroupId
+      - CloudWatchLogGroup
+      - DatabaseSecurityGroupId
+      - DomainName
+      - Environment
+      - MaxNumLaraWebTasks
+      - MinNumLaraWebTasks
+      - SSLCertificateName
