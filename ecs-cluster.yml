@@ -316,3 +316,15 @@ Resources:
       ComparisonOperator: LessThanOrEqualToThreshold
       MetricName: CPUReservation
       Namespace: AWS/ECS
+
+Outputs:
+  ClusterName:
+    Description: The name of the cluster created here
+    Value: !Ref EcsClusterName
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterName"
+  ClusterSecurityGroupId:
+    Description: EC2 Security group id of the EC2 instances in the cluster
+    Value: !Ref EcsSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterSecurityGroupId"
