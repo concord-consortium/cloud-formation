@@ -15,19 +15,16 @@ Parameters:
     Type: AWS::EC2::SecurityGroup::Id
     Description: Select security group of the RDS database. This security group will
       be modified to allow access by the EC2 instances in this stack
-  ClusterContainersSecurityGroupId:
-    Type: AWS::EC2::SecurityGroup::Id
-    Description: Select security group of the Cluster containers. This security group will
-      be added to the DataSecurity group to allow them to access it.
   DomainName:
     Type: String
     Description: The DNS name that will be created or updated to point at the load
       balancer
-  # a better approach here would be to ask for the CloudFormation cluster stack then
-  # we can pull out the cluster name and cluster security group
-  ClusterName:
+
+  ClusterStackName:
     Type: String
-    Description: The ECS cluster to this application to
+    Description: The name of the CloudFormation stack that manages the cluster you want
+      this application deployed in.  The cluster security group will be added to the
+      database security group to allow the app to access the database.
 
   AddFakeAuthProvider:
     Type: String
@@ -400,7 +397,7 @@ Resources:
         - Name: MODEL_JSON_LIST_URL
           Value: !Ref ModelJsonListURL
 
-  LaraWebService:
+  LaraAppService:
     Type: AWS::ECS::Service
     DependsOn:
     - ELBListener443
@@ -413,7 +410,7 @@ Resources:
       - TargetGroupArn: !Ref "ELBTargetGroup"
         ContainerPort: 80
         ContainerName: LaraContainer
-      Cluster: !Ref "ClusterName"
+      Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
 
   LaraLogGroup:
     Type: AWS::Logs::LogGroup
@@ -445,12 +442,12 @@ Resources:
       IpProtocol: tcp
       FromPort: '3306'
       ToPort: '3306'
-      SourceSecurityGroupId: !Ref 'ClusterContainersSecurityGroupId'
+      SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
   ClusterIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupId: !Ref 'ClusterContainersSecurityGroupId'
+      GroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
       IpProtocol: tcp
       # these are the ephemerial ports created dyanmically when the task is
       # deployed on the container instance
@@ -458,104 +455,41 @@ Resources:
       ToPort: '61000'
       SourceSecurityGroupId: !Ref 'LoadBalancerSG'
 
-  LaraWebScalingTarget:
-    Type: AWS::ApplicationAutoScaling::ScalableTarget
-    DependsOn: LaraWebService
+  LaraAppScaling:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      MaxCapacity: !Ref MaxNumLaraWebTasks
-      MinCapacity: !Ref MinNumLaraWebTasks
-      ResourceId: !Sub "service/${ClusterName}/${LaraWebService.Name}"
-      RoleARN: !GetAtt AutoscalingRole.Arn
-      ScalableDimension: ecs:service:DesiredCount
-      ServiceNamespace: ecs
-  LaraWebScaleUpPolicy:
-    Type: AWS::ApplicationAutoScaling::ScalingPolicy
-    Properties:
-      PolicyName: StepPolicyUpPolicy
-      PolicyType: StepScaling
-      ScalingTargetId: !Ref 'LaraWebScalingTarget'
-      StepScalingPolicyConfiguration:
-        AdjustmentType: PercentChangeInCapacity
+      # Change to location of scaling Template
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      Parameters:
+        ServiceName: !GetAtt LaraAppService.Name
+        RoleARN: !GetAtt AutoscalingRole.Arn
+        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+        MaxNumTasks: !Ref MaxNumLaraWebTasks
+        MinNumTasks: !Ref MinNumLaraWebTasks
         # we are using a longer alarm evaluation period to deal with the cooldown
         # period. There might be a better way to handle this.
-        Cooldown: '0'
-        MetricAggregationType: Average
-        StepAdjustments:
-        - MetricIntervalLowerBound: '0'
-          MetricIntervalUpperBound: '25'
-          ScalingAdjustment: '100'
-        - MetricIntervalLowerBound: '25'
-          ScalingAdjustment: '200'
-
-  LaraWebAlarmScaleUp:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      Statistic: Average
-      Threshold: '75'
-      AlarmDescription: Alarm if our Service is working too hard.
-      # this 2 minute evaluation period helps with an initial spike
-      # when a new container is started, and it also helps the CPUUtilization start
-      # to reflect the change in capacity. This is also the point of the Cooldown setting
-      # but in that case I think it prevents more scaling up if we aren't able to keep up
-      # with demand.
-      EvaluationPeriods: '2'
-      Period: '60'
-      AlarmActions: [!Ref 'LaraWebScaleUpPolicy']
-      Namespace: AWS/ECS
-      Dimensions:
-      - Name: ClusterName
-        Value: !Ref ClusterName
-      - Name: ServiceName
-        Value: !GetAtt LaraWebService.Name
-      ComparisonOperator: GreaterThanThreshold
-      MetricName: CPUUtilization
-
-  LaraWebScaleDownPolicy:
-    Type: AWS::ApplicationAutoScaling::ScalingPolicy
-    Properties:
-      PolicyName: StepPolicyDownPolicy
-      PolicyType: StepScaling
-      ScalingTargetId: !Ref 'LaraWebScalingTarget'
-      StepScalingPolicyConfiguration:
-        AdjustmentType: ChangeInCapacity
-        # As far as I can tell the cooldown period doesn't start until the service
-        # has actually decreased. That decrease doesn't happen until the
-        # connections have been drained from the tasks. And during that draining the
-        # CPUUtilization metric will not really change. The old task will be doing less
-        # but the other tasks will be doing more. Then when the old task is shutdown
-        # the metric will change. So the cooldown needs to be long enough to make sure
-        # the metric represents the full time of the lower capacity.
-        Cooldown: 300
-        MetricAggregationType: Average
-        StepAdjustments:
-        - MetricIntervalUpperBound: 0
-          ScalingAdjustment: '-1'
-  LaraWebAlarmScaleDown:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      # the CPUUtilization metric is agregated across all tasks in the service
-      # so the average will be different than the maxium even for a period of 1 minute
-      # If just one task is running hard then the maxium will be high even though the
-      # other tasks are barely running.
-      Statistic: Average
-      Threshold: '35'
-      AlarmDescription: Alarm if our Service is not working enough.
-      # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
-      # this approach helps offset a running average affecting the responsiveness.
-      # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
-      # could be below 35%. However with 5 evaluation periods, then the 49% will cancel
-      # the alarm.
-      EvaluationPeriods: '5'
-      Period: '60'
-      AlarmActions: [!Ref 'LaraWebScaleDownPolicy']
-      Namespace: AWS/ECS
-      Dimensions:
-      - Name: ClusterName
-        Value: !Ref ClusterName
-      - Name: ServiceName
-        Value: !GetAtt LaraWebService.Name
-      ComparisonOperator: LessThanThreshold
-      MetricName: CPUUtilization
+        ScaleUpCooldown: '0'
+        ScaleUpStepBoundary: '25'
+        ScaleUpStepAdjustment1: '100'
+        ScaleUpStepAdjustment2: '200'
+        ScaleUpAlarmThreshold: '75'
+        # this 2 minute evaluation period helps with an initial spike
+        # when a new container is started, and it also helps the CPUUtilization start
+        # to reflect the change in capacity. This is also the point of the Cooldown setting
+        # but in that case I think it prevents more scaling up if we aren't able to keep up
+        # with demand.
+        ScaleUpAlarmEvaluationPeriods: '2'
+        ScaleUpAlarmPeriod: '60'
+        ScaleDownCooldown: '300'
+        ScaleDownStepAdjustment: '-1'
+        ScaleDownAlarmThreshold: '35'
+        # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
+        # this approach helps offset a running average affecting the responsiveness.
+        # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
+        # could be below 35%. However with 5 evaluation periods, then the 49% will cancel
+        # the alarm.
+        ScaleDownAlarmEvaluationPeriods: '5'
+        ScaleDownAlarmPeriod: '60'
 
   AutoscalingRole:
     Type: AWS::IAM::Role
@@ -800,7 +734,7 @@ Resources:
     Properties:
       TaskDefinition: !Ref "WorkerTaskDefinition"
       DesiredCount: 1
-      Cluster: !Ref "ClusterName"
+      Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
 
   WorkerScalingTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
@@ -808,7 +742,11 @@ Resources:
     Properties:
       MaxCapacity: '10'
       MinCapacity: '1'
-      ResourceId: !Sub "service/${ClusterName}/${WorkerService.Name}"
+      ResourceId: !Join
+        - '/'
+        - - service
+          - { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+          - !Sub '${WorkerService.Name}'
       RoleARN: !GetAtt AutoscalingRole.Arn
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
@@ -839,7 +777,7 @@ Resources:
       Namespace: AWS/ECS
       Dimensions:
       - Name: ClusterName
-        Value: !Ref ClusterName
+        Value: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
       - Name: ServiceName
         Value: !GetAtt WorkerService.Name
       ComparisonOperator: GreaterThanThreshold
@@ -873,7 +811,7 @@ Resources:
       Namespace: AWS/ECS
       Dimensions:
       - Name: ClusterName
-        Value: !Ref ClusterName
+        Value: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
       - Name: ServiceName
         Value: !GetAtt WorkerService.Name
       ComparisonOperator: LessThanThreshold
@@ -920,8 +858,7 @@ Metadata:
     - Label:
         default: Infrastructure
       Parameters:
-      - ClusterName
-      - ClusterContainersSecurityGroupId
+      - ClusterStackiName
       - CloudWatchLogGroup
       - DatabaseSecurityGroupId
       - DomainName

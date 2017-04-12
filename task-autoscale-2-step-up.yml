@@ -1,0 +1,166 @@
+# NOTE: this requires the autoscale role is passed in
+# currently each of our stacks is creating this role itself. It might be better
+# to assume the account has the standard ecsAutoscaleRole already configured
+# this would also be a step toward elminating the need for the IAM checkbox when updating
+# the stack. At least we can use AWS::IAM::ManagedPolicy intead of a plain policy
+# NOTE: the nested stack reference might need 'DependsOn' on the service being scaled. This
+#  stack creates a ScalableTarget that assumes the service already exists. Perhaps this
+#  won't be a problem because the name of the Service is going passed in which should
+#  create a implicit DependsOn relationship.
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Task Autoscaler
+Parameters:
+  ServiceName:
+    Type: String
+    Description: Name of the ECS service to be scaled.
+  RoleARN:
+    Type: String
+    Description: The ARN of the role used to scale the service.
+  ClusterName:
+    Type: String
+    Description: |
+      Name of the ECS cluster that the service is part of.
+  MaxNumTasks:
+    Type: String
+    Description: Max number of tasks the autoscaler will spin up
+  MinNumTasks:
+    Type: String
+    Description: Min number of tasks the autoscaler will decrease to.
+  ScaleUpCooldown:
+    Type: Number
+    Description: number of seconds to wit until a new scale up event happens.
+  ScaleUpStepBoundary:
+    Type: Number
+    Description: |
+      the metric value that triggers the second step of scaling.
+      I believe this vaue is added to the ScaleUpAlarmThreashold to find its absolute value.
+  ScaleUpStepAdjustment1:
+    Type: Number
+    Description: the percent change in number of tasks for the first step of scaling
+  ScaleUpStepAdjustment2:
+    Type: Number
+    Description: the percent change in number of tasks for the second step of scaling
+  ScaleUpAlarmThreshold:
+    Type: Number
+    Description: the percent of CPUUtilization that causes the scale up alarm to fire
+  ScaleUpAlarmEvaluationPeriods:
+    Type: Number
+    Description: number of periods the threshold has to be breached before alarming
+  ScaleUpAlarmPeriod:
+    Type: Number
+    Description: number of seconds in a period
+
+  ScaleDownCooldown:
+    Type: Number
+    Description: number of seconds to wit until a new scale down event happens.
+  ScaleDownStepAdjustment:
+    Type: Number
+    Description: the change in tasks when the scaling down occurs should be a negative number
+  ScaleDownAlarmThreshold:
+    Type: Number
+    Description: the percent of CPUUtilization that causes the scale dpown alarm to fire
+  ScaleDownAlarmEvaluationPeriods:
+    Type: Number
+    Description: number of periods the threshold has to be breached before alarming
+  ScaleDownAlarmPeriod:
+    Type: Number
+    Description: number of seconds in a period
+
+
+Resources:
+  TaskScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref MaxNumTasks
+      MinCapacity: !Ref MinNumTasks
+      ResourceId: !Join
+        - '/'
+        - - service
+          - !Ref 'ClusterName'
+          - !Ref 'ServiceName'
+      RoleARN: !Ref 'RoleARN'
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+  TaskScaleUpPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: StepPolicyUpPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref 'TaskScalingTarget'
+      StepScalingPolicyConfiguration:
+        AdjustmentType: PercentChangeInCapacity
+        # we are using a longer alarm evaluation period to deal with the cooldown
+        # period. There might be a better way to handle this.
+        Cooldown: !Ref 'ScaleUpCooldown'
+        MetricAggregationType: Average
+        StepAdjustments:
+        - MetricIntervalLowerBound: '0'
+          MetricIntervalUpperBound: !Ref 'ScaleUpStepBoundary'
+          ScalingAdjustment: !Ref 'ScaleUpStepAdjustment1'
+        - MetricIntervalLowerBound: !Ref 'ScaleUpStepBoundary'
+          ScalingAdjustment: !Ref 'ScaleUpStepAdjustment2'
+
+  TaskScaleUpAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Statistic: Average
+      Threshold: !Ref 'ScaleUpAlarmThreshold'
+      AlarmDescription: Alarm if our Service is working too hard.
+      # this 2 minute evaluation period helps with an initial spike
+      # when a new container is started, and it also helps the CPUUtilization start
+      # to reflect the change in capacity. This is also the point of the Cooldown setting
+      # but in that case I think it prevents more scaling up if we aren't able to keep up
+      # with demand.
+      EvaluationPeriods: !Ref 'ScaleUpAlarmEvaluationPeriods'
+      Period: !Ref 'ScaleUpAlarmPeriod'
+      AlarmActions: [!Ref 'TaskScaleUpPolicy']
+      Namespace: AWS/ECS
+      Dimensions:
+      - Name: ClusterName
+        Value: !Ref 'ClusterName'
+      - Name: ServiceName
+        Value: !Ref 'ServiceName'
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
+
+  TaskScaleDownPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: StepPolicyDownPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref 'TaskScalingTarget'
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        # As far as I can tell the cooldown period doesn't start until the service
+        # has actually decreased. That decrease doesn't happen until the
+        # connections have been drained from the tasks. And during that draining the
+        # CPUUtilization metric will not really change. The old task will be doing less
+        # but the other tasks will be doing more. Then when the old task is shutdown
+        # the metric will change. So the cooldown needs to be long enough to make sure
+        # the metric represents the full time of the lower capacity.
+        Cooldown: !Ref 'ScaleDownCooldown'
+        MetricAggregationType: Average
+        StepAdjustments:
+        - MetricIntervalUpperBound: 0
+          ScalingAdjustment: !Ref 'ScaleDownStepAdjustment'
+  TaskScaleDownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      # the CPUUtilization metric is agregated across all tasks in the service
+      # so the average will be different than the maxium even for a period of 1 minute
+      # If just one task is running hard then the maxium will be high even though the
+      # other tasks are barely running.
+      Statistic: Average
+      Threshold: !Ref 'ScaleDownAlarmThreshold'
+      AlarmDescription: Alarm if our Service is not working enough.
+      EvaluationPeriods: !Ref 'ScaleDownAlarmEvaluationPeriods'
+      Period: !Ref 'ScaleDownAlarmPeriod'
+      AlarmActions: [!Ref 'TaskScaleDownPolicy']
+      Namespace: AWS/ECS
+      Dimensions:
+      - Name: ClusterName
+        Value: !Ref 'ClusterName'
+      - Name: ServiceName
+        Value: !Ref 'ServiceName'
+      ComparisonOperator: LessThanThreshold
+      MetricName: CPUUtilization
