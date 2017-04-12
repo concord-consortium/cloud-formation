@@ -510,7 +510,7 @@ Resources:
               'ecs:DescribeServices', 'ecs:UpdateService']
             Resource: '*'
 
-  WorkerTaskDefinition:
+  LaraWorkerTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: LaraWorkerTask
@@ -729,93 +729,41 @@ Resources:
         - Name: MODEL_JSON_LIST_URL
           Value: !Ref ModelJsonListURL
 
-  WorkerService:
+  LaraWorkerService:
     Type: AWS::ECS::Service
     Properties:
-      TaskDefinition: !Ref "WorkerTaskDefinition"
+      TaskDefinition: !Ref "LaraWorkerTaskDefinition"
       DesiredCount: 1
       Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
 
-  WorkerScalingTarget:
-    Type: AWS::ApplicationAutoScaling::ScalableTarget
-    DependsOn: WorkerService
+  LaraWorkerScaling:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      MaxCapacity: '10'
-      MinCapacity: '1'
-      ResourceId: !Join
-        - '/'
-        - - service
-          - { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
-          - !Sub '${WorkerService.Name}'
-      RoleARN: !GetAtt AutoscalingRole.Arn
-      ScalableDimension: ecs:service:DesiredCount
-      ServiceNamespace: ecs
-
-  WorkerScaleUpPolicy:
-    Type: AWS::ApplicationAutoScaling::ScalingPolicy
-    Properties:
-      PolicyName: WorkerScaleUpPolicy
-      PolicyType: StepScaling
-      ScalingTargetId: !Ref 'WorkerScalingTarget'
-      StepScalingPolicyConfiguration:
-        AdjustmentType: PercentChangeInCapacity
-        Cooldown: 240
-        MetricAggregationType: Average
-        StepAdjustments:
-        - MetricIntervalLowerBound: 0
-          ScalingAdjustment: 100
-
-  WorkerAlarmScaleUp:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      Statistic: Average
-      Threshold: '75'
-      AlarmDescription: Alarm if our Service is working too hard.
-      EvaluationPeriods: '1'
-      Period: '60'
-      AlarmActions: [!Ref 'WorkerScaleUpPolicy']
-      Namespace: AWS/ECS
-      Dimensions:
-      - Name: ClusterName
-        Value: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
-      - Name: ServiceName
-        Value: !GetAtt WorkerService.Name
-      ComparisonOperator: GreaterThanThreshold
-      MetricName: CPUUtilization
-
-  WorkerScaleDownPolicy:
-    Type: AWS::ApplicationAutoScaling::ScalingPolicy
-    Properties:
-      PolicyName: WorkerScaleDownPolicy
-      PolicyType: StepScaling
-      ScalingTargetId: !Ref 'WorkerScalingTarget'
-      StepScalingPolicyConfiguration:
-        AdjustmentType: ChangeInCapacity
-        Cooldown: 300
-        MetricAggregationType: Average
-        StepAdjustments:
-        - MetricIntervalUpperBound: 0
-          ScalingAdjustment: '-1'
-
-  WorkerAlarmScaleDown:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      # see LARAWebAlarmScaleDown resource for more info
-      Statistic: Average
-      Threshold: '35'
-      AlarmDescription: Alarm if our Service is not working enough.
-      # see LARAWebAlarmScaleDown resource for more info
-      EvaluationPeriods: '5'
-      Period: '60'
-      AlarmActions: [!Ref 'WorkerScaleDownPolicy']
-      Namespace: AWS/ECS
-      Dimensions:
-      - Name: ClusterName
-        Value: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
-      - Name: ServiceName
-        Value: !GetAtt WorkerService.Name
-      ComparisonOperator: LessThanThreshold
-      MetricName: CPUUtilization
+      # Change to location of scaling Template
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      Parameters:
+        ServiceName: !GetAtt LaraWorkerService.Name
+        RoleARN: !GetAtt AutoscalingRole.Arn
+        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+        MaxNumTasks: '10'
+        MinNumTasks: '1'
+        ScaleUpCooldown: '240'
+        ScaleUpStepBoundary: '25'
+        ScaleUpStepAdjustment1: '100'
+        ScaleUpStepAdjustment2: '200'
+        ScaleUpAlarmThreshold: '75'
+        ScaleUpAlarmEvaluationPeriods: '1'
+        ScaleUpAlarmPeriod: '60'
+        ScaleDownCooldown: '300'
+        ScaleDownStepAdjustment: '-1'
+        ScaleDownAlarmThreshold: '35'
+        # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
+        # this approach helps offset a running average affecting the responsiveness.
+        # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
+        # could be below 35%. However with 5 evaluation periods, then the 49% will cancel
+        # the alarm.
+        ScaleDownAlarmEvaluationPeriods: '5'
+        ScaleDownAlarmPeriod: '60'
 
 Outputs:
   ElasticLoadBalancerURL:
