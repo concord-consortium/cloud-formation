@@ -113,63 +113,24 @@ Conditions:
   AddLearnPortal: !Not [!Equals [!Ref LearnPortalSecret, ""]]
 
 Resources:
-  ELBv2:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  LaraWebService:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      Subnets: [subnet-7fb16326,subnet-09c2dd40]
-      SecurityGroups: [!Ref 'LoadBalancerSG']
-      LoadBalancerAttributes:
-      - Key: idle_timeout.timeout_seconds
-        Value: '180'
-
-  ELBTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckIntervalSeconds: '30'
-      HealthCheckProtocol: HTTP
-      HealthyThresholdCount: '2'
-      UnhealthyThresholdCount: '3'
-      HealthCheckTimeoutSeconds: '5'
-      # even though this is set to 80 the actual port will
-      # be overriden by each of the containers that is added
-      # to the target group
-      Port: '80'
-      Protocol: HTTP
-      TargetGroupAttributes:
-      - Key: deregistration_delay.timeout_seconds
-        Value: '300'
-      VpcId: vpc-9c9714f9
-
-  ELBListener443:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      Certificates:
-      - CertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
-      DefaultActions:
-      - TargetGroupArn: !Ref 'ELBTargetGroup'
-        Type: forward
-      LoadBalancerArn: !Ref 'ELBv2'
-      Port: '443'
-      Protocol: HTTPS
-  ELBListener80:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-      - TargetGroupArn: !Ref 'ELBTargetGroup'
-        Type: forward
-      LoadBalancerArn: !Ref 'ELBv2'
-      Port: '80'
-      Protocol: HTTP
-
-  ELBDNS:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      AliasTarget:
-        DNSName: !GetAtt [ELBv2, DNSName]
-        HostedZoneId: !GetAtt [ELBv2, CanonicalHostedZoneID]
-      HostedZoneName: concord.org.
-      Name: !Ref 'DomainName'
-      Type: A
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-web-service.yml
+      Parameters:
+        LoadBalancerIdleTimeout: '180'
+        HealthCheckIntervalSeconds: '30'
+        HealthyThresholdCount: '2'
+        UnhealthyThresholdCount: '3'
+        HealthCheckTimeoutSeconds: '5'
+        DeregistrationDelay: '300'
+        HTTPSCertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
+        DomainName: !Ref 'DomainName'
+        TaskDefinition: !Ref 'LaraWebTaskDefinition'
+        DesiredTaskCount: '1'
+        ContainerName: LaraContainer
+        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+        ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
   LaraWebTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -397,43 +358,10 @@ Resources:
         - Name: MODEL_JSON_LIST_URL
           Value: !Ref ModelJsonListURL
 
-  LaraAppService:
-    Type: AWS::ECS::Service
-    DependsOn:
-    - ELBListener443
-    - ELBListener80
-    Properties:
-      Role: 'ecsServiceRole'
-      TaskDefinition: !Ref "LaraWebTaskDefinition"
-      DesiredCount: 1
-      LoadBalancers:
-      - TargetGroupArn: !Ref "ELBTargetGroup"
-        ContainerPort: 80
-        ContainerName: LaraContainer
-      Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
-
   LaraLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref CloudWatchLogGroup
-
-  LoadBalancerSG:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: security group for lara load balancer
-      SecurityGroupEgress:
-      - IpProtocol: '-1'
-        CidrIp: 0.0.0.0/0
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: '80'
-        ToPort: '80'
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: '443'
-        ToPort: '443'
-        CidrIp: 0.0.0.0/0
-      VpcId: vpc-9c9714f9
 
   DBIngress:
     Type: AWS::EC2::SecurityGroupIngress
@@ -444,24 +372,13 @@ Resources:
       ToPort: '3306'
       SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
-  ClusterIngress:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      GroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
-      IpProtocol: tcp
-      # these are the ephemerial ports created dyanmically when the task is
-      # deployed on the container instance
-      FromPort: '32768'
-      ToPort: '61000'
-      SourceSecurityGroupId: !Ref 'LoadBalancerSG'
-
   LaraAppScaling:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
       Parameters:
-        ServiceName: !GetAtt LaraAppService.Name
+        ServiceName: !GetAtt LaraWebService.Outputs.Name
         RoleARN: !GetAtt AutoscalingRole.Arn
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         MaxNumTasks: !Ref MaxNumLaraWebTasks
@@ -491,6 +408,7 @@ Resources:
         ScaleDownAlarmEvaluationPeriods: '5'
         ScaleDownAlarmPeriod: '60'
 
+  # see if we can replace this with the pre-existing ecsAutoscaleRole
   AutoscalingRole:
     Type: AWS::IAM::Role
     Properties:
@@ -765,9 +683,6 @@ Resources:
         ScaleDownAlarmEvaluationPeriods: '5'
         ScaleDownAlarmPeriod: '60'
 
-Outputs:
-  ElasticLoadBalancerURL:
-    Value: !Join ['', ['http://', !GetAtt [ELBv2, DNSName]]]
 Mappings:
   SSLCertificateMap:
     star.concord.org:

@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Web Service with load balancer and DNS Entry
+Parameters:
+  LoadBalancerIdleTimeout:
+    Type: Number
+    Description: how long in seconds load balancer should give idle connections.
+  HealthCheckIntervalSeconds:
+    Type: Number
+    Description: How often in seconds to do a health check
+  HealthyThresholdCount:
+    Type: Number
+    Description: How many healthy health checks, before marking the task healthy.
+  UnhealthyThresholdCount:
+    Type: Number
+    Description: How many unhealthy health checks, before marking task as unhealthy.
+  HealthCheckTimeoutSeconds:
+    Type: Number
+    Description: How many seconds to wait for the healthcheck to return
+  DeregistrationDelay:
+    Type: Number
+    Description: |
+      The amount time for Elastic Load Balancing to wait before changing the state of a
+      deregistering target from draining to unused.
+  HTTPSCertificateArn:
+    Type: String
+    Description: certifcate to use for https
+  DomainName:
+    Type: String
+    Description: |
+      the domain name to use for DNS entry for this service it must end with .concord.org
+  TaskDefinition:
+    Type: String
+    Description: identifier for the task definition used by this service
+  DesiredTaskCount:
+    Type: Number
+    Description: Initial number of tasks in the service
+  ContainerName:
+    Type: String
+    Description: The name of the container in the task that the load balancer should point at
+  ClusterName:
+    Type: String
+    Description: name of cluster for the new service
+  ClusterSecurityGroupId:
+    Type: String
+    Description: |
+      the security group id of the cluster, new rule will be added to this so the load
+      blancer can send requests into the cluster
+
+Resources:
+  ELBv2:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets: [subnet-7fb16326,subnet-09c2dd40]
+      SecurityGroups: [!Ref 'LoadBalancerSG']
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: !Ref 'LoadBalancerIdleTimeout'
+
+  ELBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: !Ref 'HealthCheckIntervalSeconds'
+      HealthCheckProtocol: HTTP
+      HealthyThresholdCount: !Ref 'HealthyThresholdCount'
+      UnhealthyThresholdCount: !Ref 'UnhealthyThresholdCount'
+      HealthCheckTimeoutSeconds: !Ref 'HealthCheckTimeoutSeconds'
+      # even though this is set to 80 the actual port will
+      # be overriden by each of the containers that is added
+      # to the target group
+      Port: '80'
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: !Ref 'DeregistrationDelay'
+      VpcId: vpc-9c9714f9
+
+  ELBListener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+      - CertificateArn: !Ref 'HTTPSCertificateArn'
+      DefaultActions:
+      - TargetGroupArn: !Ref 'ELBTargetGroup'
+        Type: forward
+      LoadBalancerArn: !Ref 'ELBv2'
+      Port: '443'
+      Protocol: HTTPS
+  ELBListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !Ref 'ELBTargetGroup'
+        Type: forward
+      LoadBalancerArn: !Ref 'ELBv2'
+      Port: '80'
+      Protocol: HTTP
+
+  ELBDNS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt [ELBv2, DNSName]
+        HostedZoneId: !GetAtt [ELBv2, CanonicalHostedZoneID]
+      HostedZoneName: concord.org.
+      Name: !Ref 'DomainName'
+      Type: A
+
+  WebService:
+    Type: AWS::ECS::Service
+    DependsOn:
+    - ELBListener443
+    - ELBListener80
+    Properties:
+      Role: 'ecsServiceRole'
+      TaskDefinition: !Ref 'TaskDefinition'
+      DesiredCount: !Ref 'DesiredTaskCount'
+      LoadBalancers:
+      - TargetGroupArn: !Ref "ELBTargetGroup"
+        ContainerPort: 80
+        ContainerName: !Ref 'ContainerName'
+      Cluster: !Ref 'ClusterName'
+
+  LoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: security group for load balancer
+      SecurityGroupEgress:
+      - IpProtocol: '-1'
+        CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 0.0.0.0/0
+      VpcId: vpc-9c9714f9
+
+  ClusterIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'ClusterSecurityGroupId'
+      IpProtocol: tcp
+      # these are the ephemerial ports created dyanmically when the task is
+      # deployed on the container instance
+      FromPort: '32768'
+      ToPort: '61000'
+      SourceSecurityGroupId: !Ref 'LoadBalancerSG'
+
+
+
+Outputs:
+  Name:
+    Value: !GetAtt WebService.Name
+    Description: Name of the created web service
