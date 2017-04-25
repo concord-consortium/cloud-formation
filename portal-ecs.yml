@@ -1,0 +1,233 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: portal ecs stack
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    AllowedValues: [staging, production]
+    Description: Enter staging or production. Default is staging.
+  SSLCertificateName:
+    Type: String
+    AllowedValues: [star.concord.org, star.staging.concord.org]
+    Description: Two certificates are registered with AWS choose which one to use for the
+      load balancer
+  DatabaseSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Select security group of the RDS database. This security group will
+      be modified to allow access by the EC2 instances in this stack
+  DomainName:
+    Type: String
+    Description: The DNS name that will be created or updated to point at the load
+      balancer
+
+  ClusterStackName:
+    Type: String
+    Description: The name of the CloudFormation stack that manages the cluster you want
+      this application deployed in.  The cluster security group will be added to the
+      database security group to allow the app to access the database.
+
+  DbHost:
+    Type: String
+    Description: The hostname of the database. Template assumes database name is portal.
+  DbPassword:
+    Type: String
+    Description: The password of the database. Template assumes username is master.
+  NewRelicAppName:
+    Type: String
+    Description: App name to show in NewRelic
+  NewRelicLicenseKey:
+    Type: String
+
+  CloudWatchLogGroup:
+    Type: String
+    Description: logging group in cloud watch where the aws logs will be sent
+  MaxNumPortalWebTasks:
+    Type: String
+    Description: maxium number of Portal Web tasks the autoscaler will spin up
+  MinNumPortalWebTasks:
+    Type: String
+    Description: minimum number of Portal Web tasks the autoscaler will spin up
+  PortalDockerImage:
+    Type: String
+    Description: docker image to use for the web container and worker container
+
+  AdminEmail:
+    Type: String
+    Description: email address used as from address for some automated messages
+    Default: learn-help@concord.org
+  AuthoringSiteURL:
+    Type: String
+    Description: URL to the authoring site, this is used for importing activities and a
+      convience link.
+    Default: https://authoring.staging.concord.org
+  HelpEmail:
+    Type: String
+    Description: email address added to various pages so users can contact us
+    Default: learn-help@concord.org
+  PadletPassword:
+    Type: String
+  PadletUser:
+    Type: String
+  PortalFeatures:
+    Type: String
+    Description: list of rails engines to load to support exstra features
+  ReportViewURL:
+    Type: String
+    Description: URL of the portal report it must have a domain of either
+      portal-report.concord.org or concord-consortium.github.io
+  S3AccessKeyId:
+    Type: String
+  S3SecreateAccessKey:
+    Type: String
+  S3Bucket:
+    Type: String
+    Description: name of the bucket not including any region identifiers
+  SchoologyConsumerKey:
+    Type: String
+  SchoologyConsumerSecret:
+    Type: String
+  SiteKey:
+    Type: String
+  SiteName:
+    Type: String
+  SiteURL:
+    Type: String
+    Description: this is used in places where we need to provide URLs back to this app.
+      These references are minimized to only where they are necessary. Examples are in the
+      automated email messages, and when providing return urls to external activities.
+  SMTPUser:
+    Type: String
+  SMTPPassword:
+    Type: String
+  Theme:
+    Type: String
+  ResearcherReportHost:
+    Type: String
+
+Resources:
+  PortalWebService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-web-service.yml
+      Parameters:
+        LoadBalancerIdleTimeout: '180'
+        HealthCheckIntervalSeconds: '30'
+        HealthyThresholdCount: '2'
+        UnhealthyThresholdCount: '3'
+        HealthCheckTimeoutSeconds: '5'
+        DeregistrationDelay: '300'
+        HTTPSCertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
+        DomainName: !Ref 'DomainName'
+        TaskDefinition: !Ref 'PortalWebTaskDefinition'
+        DesiredTaskCount: '1'
+        ContainerName: PortalContainer
+        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+        ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+
+  PortalWebTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: PortalWebTask
+      ContainerDefinitions:
+      - Name: PortalContainer
+        Image: !Ref PortalDockerImage
+        Cpu: "512"
+        PortMappings:
+        - ContainerPort: '80'
+        Command:
+        - bash
+        - '-c'
+        - 'chmod a+x docker/prod/run.sh && docker/prod/run.sh'
+        Memory: "900"
+        Essential: "true"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-region: us-east-1
+            awslogs-group: !Ref CloudWatchLogGroup
+            awslogs-stream-prefix: portal
+        Environment:
+        - Name: ADMIN_EMAIL
+          Value: !Ref AdminEmail
+        - Name: AUTHORING_SITE_URL
+          Value: !Ref AuthoringSiteURL
+        - Name: DB_HOST
+          Value: !Ref DbHost
+        - Name: DB_NAME
+          Value: portal
+        - Name: DB_PASSWORD
+          Value: !Ref DbPassword
+        - Name: DB_USER
+          Value: master
+        - Name: HELP_EMAIL
+          Value: !Ref HelpEmail
+        - Name: NEW_RELIC_APP_NAME
+          Value: !Ref NewRelicAppName
+        - Name: NEW_RELIC_LICENSE_KEY
+          Value: !Ref NewRelicLicenseKey
+        - Name: NUM_UNICORN_PROCESSES
+          Value: '2'
+        - Name: PADLET_PASSWORD
+          Value: !Ref PadletPassword
+        - Name: PADLET_USER
+          Value: !Ref PadletUser
+        - Name: PORTAL_FEATURES
+          Value: !Ref PortalFeatures
+        - Name: RAILS_STDOUT_LOGGING
+          Value: 'true'
+        - Name: REPORT_DOMAINS
+          Value: portal-report.concord.org concord-consortium.github.io
+        - Name: REPORT_VIEW_URL
+          Value: !Ref ReportViewURL
+        - Name: S3_ACCESS_KEY_ID
+          Value: !Ref S3AccessKeyId
+        - Name: S3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: S3_SECRET_ACCESS_KEY
+          Value: !Ref S3SecreateAccessKey
+        - Name: SCHOOLOGY_CONSUMER_KEY
+          Value: !Ref SchoologyConsumerKey
+        - Name: SCHOOLOGY_CONSUMER_SECRET
+          Value: !Ref SchoologyConsumerSecret
+        - Name: SITE_KEY
+          Value: !Ref SiteKey
+        - Name: SITE_NAME
+          Value: !Ref SiteName
+        - Name: SITE_URL
+          Value: !Ref SiteURL
+        - Name: SMTP_PASS
+          Value: !Ref SMTPPassword
+        - Name: SMTP_USER
+          Value: !Ref SMTPUser
+        - Name: SOLR_HOST
+          Value: ruby-22-solr # TODO need to pull this from the loadbalancer for the solr task
+        - Name: SOLR_PORT
+          Value: '8983' # TODO might need to change this to 80
+        - Name: THEME
+          Value: !Ref Theme
+        - Name: TOP_LEVEL_CONTAINER_NAME
+          Value: activity
+        - Name: RESEARCHER_REPORT_HOST
+          Value: !Ref ResearcherReportHost
+
+  PortalLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref CloudWatchLogGroup
+
+  DBIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'DatabaseSecurityGroupId'
+      IpProtocol: tcp
+      FromPort: '3306'
+      ToPort: '3306'
+      SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+
+
+Mappings:
+  SSLCertificateMap:
+    star.concord.org:
+      Id: arn:aws:iam::612297603577:server-certificate/cloudfront/E3JZ7YRBPKHWAC/cc.wildcard.until.2018
+    star.staging.concord.org:
+      Id: arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560
