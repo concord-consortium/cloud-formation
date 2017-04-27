@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Test of an issue with CloudFormation TargetGroups
+Parameters:
+  ELBScheme:
+    Type: String
+    Default: internet-facing
+    AllowedValues: [ 'internet-facing', 'internal']
+  Subnet1:
+    Type: AWS::EC2::Subnet::Id
+  Subnet2:
+    Type: AWS::EC2::Subnet::Id
+  VPC:
+    Type: AWS::EC2::VPC::Id
+Resources:
+  ELBv2:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets:
+      - !Ref Subnet1
+      - !Ref Subnet2
+      Scheme: !Ref ELBScheme
+  ELBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      # Use this name property to force the TargetGroup to be recated whenever the load
+      # balancer is recreated. Otherise CloudFormation tries to add the TargetGroup
+      # to the new load balancer before removing it from the old one. And that results
+      # in an error.
+      Name: !Join
+      - '-'
+      - - 'TG1'
+        - !Select [ 2, !Split [ '-', !GetAtt ELBv2.LoadBalancerName]]
+      Port: '80'
+      Protocol: HTTP
+      VpcId: !Ref VPC
+  ELBListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !Ref 'ELBTargetGroup'
+        Type: forward
+      LoadBalancerArn: !Ref 'ELBv2'
+      Port: '80'
+      Protocol: HTTP
