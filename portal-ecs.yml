@@ -6,6 +6,10 @@ Parameters:
     Default: staging
     AllowedValues: [staging, production]
     Description: Enter staging or production. Default is staging.
+  ShortName:
+    Type: String
+    Description: 12 character or less name to use for naming created resources
+    MaxLength: '12'
   SSLCertificateName:
     Type: String
     AllowedValues: [star.concord.org, star.staging.concord.org]
@@ -110,11 +114,13 @@ Resources:
     Properties:
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-web-service.yml
       Parameters:
+        ShortName: !Sub '${ShortName}App'
         LoadBalancerIdleTimeout: '180'
         HealthCheckIntervalSeconds: '30'
         HealthyThresholdCount: '2'
         UnhealthyThresholdCount: '3'
         HealthCheckTimeoutSeconds: '5'
+        HealthCheckPath: '/'
         DeregistrationDelay: '300'
         HTTPSCertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
         DomainName: !Ref 'DomainName'
@@ -200,9 +206,9 @@ Resources:
         - Name: SMTP_USER
           Value: !Ref SMTPUser
         - Name: SOLR_HOST
-          Value: ruby-22-solr # TODO need to pull this from the loadbalancer for the solr task
+          Value: !GetAtt SolrService.Outputs.ELBDNSName # this should refer to the solr
         - Name: SOLR_PORT
-          Value: '8983' # TODO might need to change this to 80
+          Value: '80'
         - Name: THEME
           Value: !Ref Theme
         - Name: TOP_LEVEL_CONTAINER_NAME
@@ -224,6 +230,44 @@ Resources:
       ToPort: '3306'
       SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
+  SolrService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-web-service.yml
+      Parameters:
+        ShortName: !Sub '${ShortName}Solr'
+        LoadBalancerIdleTimeout: '180'
+        HealthCheckIntervalSeconds: '30'
+        HealthCheckPath: '/solr/production/admin/ping'
+        HealthyThresholdCount: '2'
+        UnhealthyThresholdCount: '3'
+        HealthCheckTimeoutSeconds: '5'
+        DeregistrationDelay: '300'
+        HTTPSCertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
+        TaskDefinition: !Ref 'SolrTaskDefinition'
+        ELBScheme: internal
+        DesiredTaskCount: '1'
+        DomainName: ''
+        ContainerName: SolrContainer
+        ContainerPort: '8983'
+        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+        ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+
+  SolrTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: SolrTask
+      ContainerDefinitions:
+      - Name: SolrContainer
+        Image: concordconsortium/docker-solr-portal
+        Cpu: "512"
+        PortMappings:
+        - ContainerPort: '8983'
+        Command:
+        - bash
+        - /opt/solr/rigse-solr-docker/start-solr.sh
+        Memory: "900"
+        Essential: "true"
 
 Mappings:
   SSLCertificateMap:

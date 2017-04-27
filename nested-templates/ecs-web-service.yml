@@ -1,12 +1,22 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: ECS Web Service with load balancer and DNS Entry
 Parameters:
+  ShortName:
+    Type: String
+    Description: This is used to provide better labels for ELBTargetGroup. Unfortunately
+      this can't be used for the LoadBalancer name because there isn't an easy way to
+      guarantee uniqueness. It should be no more than 17 characters.
+    MaxLength: '17'
   LoadBalancerIdleTimeout:
     Type: Number
     Description: how long in seconds load balancer should give idle connections.
   HealthCheckIntervalSeconds:
     Type: Number
     Description: How often in seconds to do a health check
+  HealthCheckPath:
+    Type: String
+    Description: path on the service to check for healthiness
+    Default: '/'
   HealthyThresholdCount:
     Type: Number
     Description: How many healthy health checks, before marking the task healthy.
@@ -37,6 +47,10 @@ Parameters:
   ContainerName:
     Type: String
     Description: The name of the container in the task that the load balancer should point at
+  ContainerPort:
+    Type: Number
+    Description: The internal port of the container that should be load balanced
+    Default: '80'
   ClusterName:
     Type: String
     Description: name of cluster for the new service
@@ -45,6 +59,16 @@ Parameters:
     Description: |
       the security group id of the cluster, new rule will be added to this so the load
       blancer can send requests into the cluster
+  ELBScheme:
+    Type: String
+    Default: internet-facing
+    AllowedValues: [ 'internet-facing', 'internal']
+    Description: Whether this load blancer exposes the a public ip address or an internal one.
+      Internal ip addresses are useful internal microservices that only need to be accessed
+      within the VPC.
+
+Conditions:
+  AddDNS: !Not [!Equals [!Ref DomainName, ""]]
 
 Resources:
   ELBv2:
@@ -52,6 +76,7 @@ Resources:
     Properties:
       Subnets: [subnet-7fb16326,subnet-09c2dd40]
       SecurityGroups: [!Ref 'LoadBalancerSG']
+      Scheme: !Ref ELBScheme
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: !Ref 'LoadBalancerIdleTimeout'
@@ -61,6 +86,7 @@ Resources:
     Properties:
       HealthCheckIntervalSeconds: !Ref 'HealthCheckIntervalSeconds'
       HealthCheckProtocol: HTTP
+      HealthCheckPath: !Ref 'HealthCheckPath'
       HealthyThresholdCount: !Ref 'HealthyThresholdCount'
       UnhealthyThresholdCount: !Ref 'UnhealthyThresholdCount'
       HealthCheckTimeoutSeconds: !Ref 'HealthCheckTimeoutSeconds'
@@ -73,6 +99,14 @@ Resources:
       - Key: deregistration_delay.timeout_seconds
         Value: !Ref 'DeregistrationDelay'
       VpcId: vpc-9c9714f9
+      # Use this name property to force the TargetGroup to be recreated whenever the load
+      # balancer is recreated. Otherwise CloudFormation tries to add the TargetGroup
+      # to the new load balancer before removing it from the old one. And that results
+      # in an error.
+      Name: !Join
+      - '-'
+      - - !Ref ShortName
+        - !Select [ 2, !Split [ '-', !GetAtt ELBv2.LoadBalancerName]]
 
   ELBListener443:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -94,9 +128,13 @@ Resources:
       LoadBalancerArn: !Ref 'ELBv2'
       Port: '80'
       Protocol: HTTP
+  # we might want to use https://github.com/coreos/docker-nginx-https-redirect
+  # or something similiar to handle the https redirect, then we don't need to mess with
+  # the application code itself
 
   ELBDNS:
     Type: AWS::Route53::RecordSet
+    Condition: AddDNS
     Properties:
       AliasTarget:
         DNSName: !GetAtt [ELBv2, DNSName]
@@ -106,6 +144,8 @@ Resources:
       Type: A
 
   WebService:
+    # CloudFormation uses the name of the parent stack hyphen the name of the
+    # Stack Resource pointing at this nested stack. So this is named well
     Type: AWS::ECS::Service
     DependsOn:
     - ELBListener443
@@ -116,7 +156,7 @@ Resources:
       DesiredCount: !Ref 'DesiredTaskCount'
       LoadBalancers:
       - TargetGroupArn: !Ref "ELBTargetGroup"
-        ContainerPort: 80
+        ContainerPort: !Ref 'ContainerPort'
         ContainerName: !Ref 'ContainerName'
       Cluster: !Ref 'ClusterName'
 
@@ -155,3 +195,6 @@ Outputs:
   Name:
     Value: !GetAtt WebService.Name
     Description: Name of the created web service
+  ELBDNSName:
+    Value: !GetAtt ELBv2.DNSName
+    Description: DNS name of the load balancer

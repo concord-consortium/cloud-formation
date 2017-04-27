@@ -118,8 +118,12 @@ Resources:
     Properties:
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-web-service.yml
       Parameters:
+        # If the stack name is longer than 17 chars this should fail the creation of the
+        # stack
+        ShortName: !Ref AWS::StackName
         LoadBalancerIdleTimeout: '180'
         HealthCheckIntervalSeconds: '30'
+        HealthCheckPath: '/'
         HealthyThresholdCount: '2'
         UnhealthyThresholdCount: '3'
         HealthCheckTimeoutSeconds: '5'
