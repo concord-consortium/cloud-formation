@@ -31,9 +31,6 @@ Parameters:
     Description: |
       The amount time for Elastic Load Balancing to wait before changing the state of a
       deregistering target from draining to unused.
-  HTTPSCertificateArn:
-    Type: String
-    Description: certifcate to use for https
   DomainName:
     Type: String
     Description: |
@@ -108,26 +105,6 @@ Resources:
       - - !Ref ShortName
         - !Select [ 2, !Split [ '-', !GetAtt ELBv2.LoadBalancerName]]
 
-  ELBListener443:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      Certificates:
-      - CertificateArn: !Ref 'HTTPSCertificateArn'
-      DefaultActions:
-      - TargetGroupArn: !Ref 'ELBTargetGroup'
-        Type: forward
-      LoadBalancerArn: !Ref 'ELBv2'
-      Port: '443'
-      Protocol: HTTPS
-  ELBListener80:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-      - TargetGroupArn: !Ref 'ELBTargetGroup'
-        Type: forward
-      LoadBalancerArn: !Ref 'ELBv2'
-      Port: '80'
-      Protocol: HTTP
   # we might want to use https://github.com/coreos/docker-nginx-https-redirect
   # or something similiar to handle the https redirect, then we don't need to mess with
   # the application code itself
@@ -147,9 +124,8 @@ Resources:
     # CloudFormation uses the name of the parent stack hyphen the name of the
     # Stack Resource pointing at this nested stack. So this is named well
     Type: AWS::ECS::Service
-    DependsOn:
-    - ELBListener443
-    - ELBListener80
+    # The docs recommend adding a dependency on the load balancer listener hear
+    # but I don't see why that is necessary so were are trying without it...
     Properties:
       Role: 'ecsServiceRole'
       TaskDefinition: !Ref 'TaskDefinition'
@@ -189,8 +165,6 @@ Resources:
       ToPort: '61000'
       SourceSecurityGroupId: !Ref 'LoadBalancerSG'
 
-
-
 Outputs:
   Name:
     Value: !GetAtt WebService.Name
@@ -198,3 +172,13 @@ Outputs:
   ELBDNSName:
     Value: !GetAtt ELBv2.DNSName
     Description: DNS name of the load balancer
+  TargetGroup:
+    Value: !Ref ELBTargetGroup
+    Description: ARN of the target group created by this nested stack
+  LoadBalancer:
+    Value: !Ref ELBv2
+    Description: ARN of the target group created by this nested stack
+  LoadBalancerEndingId:
+    Value: !Select [ 2, !Split [ '-', !GetAtt ELBv2.LoadBalancerName]]
+    Description: The last part of the load balancer name. This can be used to make unique
+      names for things that depend on the load balancer.

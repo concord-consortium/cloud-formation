@@ -128,13 +128,33 @@ Resources:
         UnhealthyThresholdCount: '3'
         HealthCheckTimeoutSeconds: '5'
         DeregistrationDelay: '300'
-        HTTPSCertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
         DomainName: !Ref 'DomainName'
         TaskDefinition: !Ref 'LaraWebTaskDefinition'
         DesiredTaskCount: '1'
         ContainerName: LaraContainer
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+
+  WebListener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+      - CertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
+      DefaultActions:
+      - TargetGroupArn: !GetAtt LaraWebService.Outputs.TargetGroup # !Ref 'ELBTargetGroup'
+        Type: forward
+      LoadBalancerArn: !GetAtt LaraWebService.Outputs.LoadBalancer # !Ref 'ELBv2'
+      Port: '443'
+      Protocol: HTTPS
+  WebListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !GetAtt LaraWebService.Outputs.TargetGroup # !Ref 'ELBTargetGroup'
+        Type: forward
+      LoadBalancerArn: !GetAtt LaraWebService.Outputs.LoadBalancer # !Ref 'ELBv2'
+      Port: '80'
+      Protocol: HTTP
 
   LaraWebTaskDefinition:
     Type: AWS::ECS::TaskDefinition

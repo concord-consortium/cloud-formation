@@ -122,13 +122,33 @@ Resources:
         HealthCheckTimeoutSeconds: '5'
         HealthCheckPath: '/'
         DeregistrationDelay: '300'
-        HTTPSCertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
         DomainName: !Ref 'DomainName'
         TaskDefinition: !Ref 'PortalWebTaskDefinition'
         DesiredTaskCount: '1'
         ContainerName: PortalContainer
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+
+  PortalWebListener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+      - CertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
+      DefaultActions:
+      - TargetGroupArn: !GetAtt PortalWebService.Outputs.TargetGroup
+        Type: forward
+      LoadBalancerArn: !GetAtt PortalWebService.Outputs.LoadBalancer
+      Port: '443'
+      Protocol: HTTPS
+
+  PortalHTTPSRedirect:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-https-redirect.yml
+      Parameters:
+        TargetGroupName: !Sub '${AWS::StackName}-${PortalWebService.Outputs.LoadBalancerEndingId}'
+        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+        LoadBalancerArn: !GetAtt PortalWebService.Outputs.LoadBalancer
 
   PortalWebTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -243,7 +263,6 @@ Resources:
         UnhealthyThresholdCount: '3'
         HealthCheckTimeoutSeconds: '5'
         DeregistrationDelay: '300'
-        HTTPSCertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
         TaskDefinition: !Ref 'SolrTaskDefinition'
         ELBScheme: internal
         DesiredTaskCount: '1'
@@ -252,6 +271,16 @@ Resources:
         ContainerPort: '8983'
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+
+  SolrListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !GetAtt SolrService.Outputs.TargetGroup # !Ref 'ELBTargetGroup'
+        Type: forward
+      LoadBalancerArn: !GetAtt SolrService.Outputs.LoadBalancer # !Ref 'ELBv2'
+      Port: '80'
+      Protocol: HTTP
 
   SolrTaskDefinition:
     Type: AWS::ECS::TaskDefinition

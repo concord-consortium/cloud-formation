@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Web Service with load balancer and DNS Entry
+Parameters:
+  TargetGroupName:
+    Type: String
+    Description: This is is the wil be the name of the target group. It should change
+      everytime the LoadBalancer is recreated otherwise there can be errors with the
+      targetgroup being added to two load balancers at the same time.
+    MaxLength: '32'
+  ClusterName:
+    Type: String
+    Description: Name of the cluster that the service will be added to
+  LoadBalancerArn:
+    Type: String
+    Description: ARN of the Load Balancer, a listener will be added to thid load balancer
+      on port 80.
+Resources:
+  RedirectTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckProtocol: HTTP
+      Matcher:
+        HttpCode: '301'
+      Port: '80'
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '10'
+      VpcId: vpc-9c9714f9
+      Name: !Ref TargetGroupName
+
+  RedirectTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: RedirectTask
+      ContainerDefinitions:
+      - Name: RedirectContainer
+        Image: 'jamessharp/docker-nginx-https-redirect'
+        Cpu: "256"
+        PortMappings:
+        - ContainerPort: '80'
+        Memory: "256"
+        Essential: "true"
+
+  RedirectService:
+    Type: AWS::ECS::Service
+    DependsOn:
+    - RedirectListener80
+    Properties:
+      Role: ecsServiceRole
+      TaskDefinition: !Ref RedirectTaskDefinition
+      DesiredCount: '1'
+      LoadBalancers:
+      - TargetGroupArn: !Ref RedirectTargetGroup
+        ContainerPort: '80'
+        ContainerName: 'RedirectContainer'
+      Cluster: !Ref 'ClusterName'
+
+  RedirectListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !Ref RedirectTargetGroup
+        Type: forward
+      LoadBalancerArn: !Ref LoadBalancerArn
+      Port: '80'
+      Protocol: HTTP
