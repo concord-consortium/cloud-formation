@@ -172,6 +172,9 @@ Outputs:
   ELBDNSName:
     Value: !GetAtt ELBv2.DNSName
     Description: DNS name of the load balancer
+  CanonicalHostedZoneID:
+    Value: !GetAtt ELBv2.CanonicalHostedZoneID
+    Description: HostedZone of the load balancer (needed for alias DSN targets)
   TargetGroup:
     Value: !Ref ELBTargetGroup
     Description: ARN of the target group created by this nested stack
