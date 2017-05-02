@@ -45,10 +45,10 @@ Parameters:
   CloudWatchLogGroup:
     Type: String
     Description: logging group in cloud watch where the aws logs will be sent
-  MaxNumPortalWebTasks:
+  MaxNumWebTasks:
     Type: String
     Description: maxium number of Portal Web tasks the autoscaler will spin up
-  MinNumPortalWebTasks:
+  MinNumWebTasks:
     Type: String
     Description: minimum number of Portal Web tasks the autoscaler will spin up
   PortalDockerImage:
@@ -236,6 +236,41 @@ Resources:
         - Name: RESEARCHER_REPORT_HOST
           Value: !Ref ResearcherReportHost
 
+  PortalAppScaling:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      # Change to location of scaling Template
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      Parameters:
+        ServiceName: !GetAtt PortalWebService.Outputs.Name
+        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+        MaxNumTasks: !Ref MaxNumWebTasks
+        MinNumTasks: !Ref MinNumWebTasks
+        # we are using a longer alarm evaluation period to deal with the cooldown
+        # period. There might be a better way to handle this.
+        ScaleUpCooldown: '0'
+        ScaleUpStepBoundary: '25'
+        ScaleUpStepAdjustment1: '100'
+        ScaleUpStepAdjustment2: '200'
+        ScaleUpAlarmThreshold: '75'
+        # this 2 minute evaluation period helps with an initial spike
+        # when a new container is started, and it also helps the CPUUtilization start
+        # to reflect the change in capacity. This is also the point of the Cooldown setting
+        # but in that case I think it prevents more scaling up if we aren't able to keep up
+        # with demand.
+        ScaleUpAlarmEvaluationPeriods: '2'
+        ScaleUpAlarmPeriod: '60'
+        ScaleDownCooldown: '300'
+        ScaleDownStepAdjustment: '-1'
+        ScaleDownAlarmThreshold: '35'
+        # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
+        # this approach helps offset a running average affecting the responsiveness.
+        # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
+        # could be below 35%. However with 5 evaluation periods, then the 49% will cancel
+        # the alarm.
+        ScaleDownAlarmEvaluationPeriods: '5'
+        ScaleDownAlarmPeriod: '60'
+
   PortalLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -249,6 +284,124 @@ Resources:
       FromPort: '3306'
       ToPort: '3306'
       SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+
+  PortalWorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: PortalWorkerTask
+      ContainerDefinitions:
+      - Name: PortalWorkerContainer
+        Image: !Ref PortalDockerImage
+        Cpu: "512"
+        Command:
+        - script/delayed_job
+        - run
+        Memory: "900"
+        Essential: "true"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-region: us-east-1
+            awslogs-group: !Ref CloudWatchLogGroup
+            awslogs-stream-prefix: portal
+        Environment:
+        - Name: ADMIN_EMAIL
+          Value: !Ref AdminEmail
+        - Name: AUTHORING_SITE_URL
+          Value: !Ref AuthoringSiteURL
+        - Name: DB_HOST
+          Value: !Ref DbHost
+        - Name: DB_NAME
+          Value: portal
+        - Name: DB_PASSWORD
+          Value: !Ref DbPassword
+        - Name: DB_USER
+          Value: master
+        - Name: HELP_EMAIL
+          Value: !Ref HelpEmail
+        - Name: NEW_RELIC_APP_NAME
+          Value: !Ref NewRelicAppName
+        - Name: NEW_RELIC_LICENSE_KEY
+          Value: !Ref NewRelicLicenseKey
+        - Name: NUM_UNICORN_PROCESSES
+          Value: '2'
+        - Name: PADLET_PASSWORD
+          Value: !Ref PadletPassword
+        - Name: PADLET_USER
+          Value: !Ref PadletUser
+        - Name: PORTAL_FEATURES
+          Value: !Ref PortalFeatures
+        - Name: RAILS_STDOUT_LOGGING
+          Value: 'true'
+        - Name: REPORT_DOMAINS
+          Value: portal-report.concord.org concord-consortium.github.io
+        - Name: REPORT_VIEW_URL
+          Value: !Ref ReportViewURL
+        - Name: S3_ACCESS_KEY_ID
+          Value: !Ref S3AccessKeyId
+        - Name: S3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: S3_SECRET_ACCESS_KEY
+          Value: !Ref S3SecreateAccessKey
+        - Name: SCHOOLOGY_CONSUMER_KEY
+          Value: !Ref SchoologyConsumerKey
+        - Name: SCHOOLOGY_CONSUMER_SECRET
+          Value: !Ref SchoologyConsumerSecret
+        - Name: SITE_KEY
+          Value: !Ref SiteKey
+        - Name: SITE_NAME
+          Value: !Ref SiteName
+        - Name: SITE_URL
+          Value: !Ref SiteURL
+        - Name: SMTP_PASS
+          Value: !Ref SMTPPassword
+        - Name: SMTP_USER
+          Value: !Ref SMTPUser
+        - Name: SOLR_HOST
+          Value: !GetAtt SolrService.Outputs.ELBDNSName # this should refer to the solr
+        - Name: SOLR_PORT
+          Value: '80'
+        - Name: THEME
+          Value: !Ref Theme
+        - Name: TOP_LEVEL_CONTAINER_NAME
+          Value: activity
+        - Name: RESEARCHER_REPORT_HOST
+          Value: !Ref ResearcherReportHost
+
+  PortalWorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      TaskDefinition: !Ref PortalWorkerTaskDefinition
+      DesiredCount: 1
+      Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+
+  PortalWorkerScaling:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      # Change to location of scaling Template
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      Parameters:
+        ServiceName: !GetAtt PortalWorkerService.Name
+        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+        MaxNumTasks: '10'
+        MinNumTasks: '1'
+        ScaleUpCooldown: '240'
+        ScaleUpStepBoundary: '25'
+        ScaleUpStepAdjustment1: '100'
+        ScaleUpStepAdjustment2: '200'
+        ScaleUpAlarmThreshold: '75'
+        ScaleUpAlarmEvaluationPeriods: '1'
+        ScaleUpAlarmPeriod: '60'
+        ScaleDownCooldown: '300'
+        ScaleDownStepAdjustment: '-1'
+        ScaleDownAlarmThreshold: '35'
+        # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
+        # this approach helps offset a running average affecting the responsiveness.
+        # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
+        # could be below 35%. However with 5 evaluation periods, then the 49% will cancel
+        # the alarm.
+        ScaleDownAlarmEvaluationPeriods: '5'
+        ScaleDownAlarmPeriod: '60'
 
   SolrService:
     Type: AWS::CloudFormation::Stack
