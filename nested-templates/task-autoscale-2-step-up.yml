@@ -13,9 +13,6 @@ Parameters:
   ServiceName:
     Type: String
     Description: Name of the ECS service to be scaled.
-  RoleARN:
-    Type: String
-    Description: The ARN of the role used to scale the service.
   ClusterName:
     Type: String
     Description: |
@@ -78,7 +75,7 @@ Resources:
         - - service
           - !Ref 'ClusterName'
           - !Ref 'ServiceName'
-      RoleARN: !Ref 'RoleARN'
+      RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/ecsAutoscaleRole"
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
   TaskScaleUpPolicy:

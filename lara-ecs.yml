@@ -403,7 +403,6 @@ Resources:
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
       Parameters:
         ServiceName: !GetAtt LaraWebService.Outputs.Name
-        RoleARN: !GetAtt AutoscalingRole.Arn
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         MaxNumTasks: !Ref MaxNumLaraWebTasks
         MinNumTasks: !Ref MinNumLaraWebTasks
@@ -431,26 +430,6 @@ Resources:
         # the alarm.
         ScaleDownAlarmEvaluationPeriods: '5'
         ScaleDownAlarmPeriod: '60'
-
-  # see if we can replace this with the pre-existing ecsAutoscaleRole
-  AutoscalingRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service: [application-autoscaling.amazonaws.com]
-          Action: ['sts:AssumeRole']
-      Path: /
-      Policies:
-      - PolicyName: service-autoscaling
-        PolicyDocument:
-          Statement:
-          - Effect: Allow
-            Action: ['application-autoscaling:*', 'cloudwatch:DescribeAlarms', 'cloudwatch:PutMetricAlarm',
-              'ecs:DescribeServices', 'ecs:UpdateService']
-            Resource: '*'
 
   LaraWorkerTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -685,7 +664,6 @@ Resources:
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
       Parameters:
         ServiceName: !GetAtt LaraWorkerService.Name
-        RoleARN: !GetAtt AutoscalingRole.Arn
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         MaxNumTasks: '10'
         MinNumTasks: '1'
