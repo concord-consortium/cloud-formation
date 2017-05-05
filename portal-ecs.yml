@@ -23,6 +23,11 @@ Parameters:
     Type: String
     Description: The DNS name that will be created or updated to point at the load
       balancer
+  ReportDomainName:
+    Type: String
+    Description: The DNS name of a secondary server that is configured to only handle reports
+      the main server will redirect users to this secondary server. This host will be accessed
+      with https so the name needs to work with the selected SSL certificate.
 
   ClusterStackName:
     Type: String
@@ -104,8 +109,6 @@ Parameters:
   SMTPPassword:
     Type: String
   Theme:
-    Type: String
-  ResearcherReportHost:
     Type: String
 
 Resources:
@@ -234,7 +237,7 @@ Resources:
         - Name: TOP_LEVEL_CONTAINER_NAME
           Value: activity
         - Name: RESEARCHER_REPORT_HOST
-          Value: !Ref ResearcherReportHost
+          Value: !Sub "https://${ReportDomainName}"
 
   PortalAppScaling:
     Type: AWS::CloudFormation::Stack
@@ -284,6 +287,151 @@ Resources:
       FromPort: '3306'
       ToPort: '3306'
       SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+
+  PortalReportTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: PortalReportTask
+      ContainerDefinitions:
+      - Name: PortalReportContainer
+        Image: !Ref PortalDockerImage
+        Cpu: "512"
+        PortMappings:
+        - ContainerPort: '80'
+        Command:
+        - bash
+        - '-c'
+        - 'chmod a+x docker/prod/run.sh && docker/prod/run.sh'
+        Memory: "900"
+        Essential: "true"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-region: us-east-1
+            awslogs-group: !Ref CloudWatchLogGroup
+            awslogs-stream-prefix: portal
+        Environment:
+        - Name: ADMIN_EMAIL
+          Value: !Ref AdminEmail
+        - Name: AUTHORING_SITE_URL
+          Value: !Ref AuthoringSiteURL
+        - Name: DB_HOST
+          Value: !Ref DbHost
+        - Name: DB_NAME
+          Value: portal
+        - Name: DB_PASSWORD
+          Value: !Ref DbPassword
+        - Name: DB_USER
+          Value: master
+        - Name: HELP_EMAIL
+          Value: !Ref HelpEmail
+        - Name: NEW_RELIC_APP_NAME
+          Value: !Ref NewRelicAppName
+        - Name: NEW_RELIC_LICENSE_KEY
+          Value: !Ref NewRelicLicenseKey
+        - Name: NUM_UNICORN_PROCESSES
+          Value: '2'
+        - Name: PADLET_PASSWORD
+          Value: !Ref PadletPassword
+        - Name: PADLET_USER
+          Value: !Ref PadletUser
+        - Name: PORTAL_FEATURES
+          Value: !Ref PortalFeatures
+        - Name: RAILS_STDOUT_LOGGING
+          Value: 'true'
+        - Name: REPORT_DOMAINS
+          Value: portal-report.concord.org concord-consortium.github.io
+        - Name: REPORT_VIEW_URL
+          Value: !Ref ReportViewURL
+        - Name: S3_ACCESS_KEY_ID
+          Value: !Ref S3AccessKeyId
+        - Name: S3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: S3_SECRET_ACCESS_KEY
+          Value: !Ref S3SecreateAccessKey
+        - Name: SCHOOLOGY_CONSUMER_KEY
+          Value: !Ref SchoologyConsumerKey
+        - Name: SCHOOLOGY_CONSUMER_SECRET
+          Value: !Ref SchoologyConsumerSecret
+        - Name: SITE_KEY
+          Value: !Ref SiteKey
+        - Name: SITE_NAME
+          Value: !Ref SiteName
+        - Name: SITE_URL
+          Value: !Ref SiteURL
+        - Name: SMTP_PASS
+          Value: !Ref SMTPPassword
+        - Name: SMTP_USER
+          Value: !Ref SMTPUser
+        - Name: SOLR_HOST
+          Value: !GetAtt SolrService.Outputs.ELBDNSName # this should refer to the solr
+        - Name: SOLR_PORT
+          Value: '80'
+        - Name: THEME
+          Value: !Ref Theme
+        - Name: TOP_LEVEL_CONTAINER_NAME
+          Value: activity
+        - Name: RESEARCHER_REPORT_ONLY
+          Value: 'true'
+
+  # Need ECS Service definition
+  ReportTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckProtocol: HTTP
+      # even though this is set to 80 the actual port will
+      # be overriden by each of the containers that is added
+      # to the target group
+      Port: '80'
+      Protocol: HTTP
+      VpcId: vpc-9c9714f9
+      # Use this name property to force the TargetGroup to be recreated whenever the load
+      # balancer is recreated. Otherwise CloudFormation tries to add the TargetGroup
+      # to the new load balancer before removing it from the old one. And that results
+      # in an error.
+      Name: !Sub 'ReportTarget-${PortalWebService.Outputs.LoadBalancerEndingId}'
+
+  # we might want to use https://github.com/coreos/docker-nginx-https-redirect
+  # or something similiar to handle the https redirect, then we don't need to mess with
+  # the application code itself
+
+  ReportDNS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt PortalWebService.Outputs.ELBDNSName
+        HostedZoneId: !GetAtt PortalWebService.Outputs.CanonicalHostedZoneID
+      HostedZoneName: concord.org.
+      Name: !Ref ReportDomainName
+      Type: A
+
+  PortalReportService:
+    Type: AWS::ECS::Service
+    # The docs recommend adding a dependency on the load balancer listener hear
+    # but I don't see why that is necessary so were are trying without it...
+    Properties:
+      Role: ecsServiceRole
+      TaskDefinition: !Ref PortalReportTaskDefinition
+      DesiredCount: '1'
+      LoadBalancers:
+      - TargetGroupArn: !Ref ReportTargetGroup
+        ContainerPort: '80'
+        ContainerName: PortalReportContainer
+      Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+
+  # Send all requests to the report domain name to the report target group
+  PortalReportListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref PortalWebListener443
+      Actions:
+      - TargetGroupArn: !Ref ReportTargetGroup
+        Type: forward
+      Conditions:
+      - Field: host-header
+        Values:
+        - !Ref ReportDomainName
+      Priority: '1'
 
   PortalWorkerTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -365,8 +513,6 @@ Resources:
           Value: !Ref Theme
         - Name: TOP_LEVEL_CONTAINER_NAME
           Value: activity
-        - Name: RESEARCHER_REPORT_HOST
-          Value: !Ref ResearcherReportHost
 
   PortalWorkerService:
     Type: AWS::ECS::Service
