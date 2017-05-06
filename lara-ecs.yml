@@ -113,55 +113,81 @@ Conditions:
   AddLearnPortal: !Not [!Equals [!Ref LearnPortalSecret, ""]]
 
 Resources:
-  LaraWebService:
+  AppLoadBalancerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-web-service.yml
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-load-balancer.yml
       Parameters:
-        # If the stack name is longer than 17 chars this should fail the creation of the
-        # stack
-        ShortName: !Ref AWS::StackName
         LoadBalancerIdleTimeout: '180'
-        HealthCheckIntervalSeconds: '30'
-        HealthCheckPath: '/'
-        HealthyThresholdCount: '2'
-        UnhealthyThresholdCount: '3'
-        HealthCheckTimeoutSeconds: '5'
         DeregistrationDelay: '300'
         DomainName: !Ref 'DomainName'
-        TaskDefinition: !Ref 'LaraWebTaskDefinition'
-        DesiredTaskCount: '1'
-        ContainerName: LaraContainer
-        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
-  WebListener443:
+  AppListener443:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       Certificates:
       - CertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
       DefaultActions:
-      - TargetGroupArn: !GetAtt LaraWebService.Outputs.TargetGroup # !Ref 'ELBTargetGroup'
+      - TargetGroupArn: !Ref AppTargetGroup
         Type: forward
-      LoadBalancerArn: !GetAtt LaraWebService.Outputs.LoadBalancer # !Ref 'ELBv2'
+      LoadBalancerArn: !GetAtt AppLoadBalancerStack.Outputs.LoadBalancer
       Port: '443'
       Protocol: HTTPS
-  WebListener80:
+  AppListener80:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       DefaultActions:
-      - TargetGroupArn: !GetAtt LaraWebService.Outputs.TargetGroup # !Ref 'ELBTargetGroup'
+      - TargetGroupArn: !Ref AppTargetGroup
         Type: forward
-      LoadBalancerArn: !GetAtt LaraWebService.Outputs.LoadBalancer # !Ref 'ELBv2'
+      LoadBalancerArn: !GetAtt AppLoadBalancerStack.Outputs.LoadBalancer
       Port: '80'
       Protocol: HTTP
 
-  LaraWebTaskDefinition:
+  AppService:
+    Type: AWS::ECS::Service
+    DependsOn:
+    - AppListener443
+    - AppListener80
+    Properties:
+      Role: ecsServiceRole
+      TaskDefinition: !Ref AppTaskDefinition
+      DesiredCount: '1'
+      LoadBalancers:
+      - TargetGroupArn: !Ref AppTargetGroup
+        ContainerPort: '80'
+        ContainerName: App
+      Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+
+  AppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: '30'
+      HealthCheckProtocol: HTTP
+      HealthyThresholdCount: '2'
+      UnhealthyThresholdCount: '3'
+      HealthCheckTimeoutSeconds: '5'
+      # even though this is set to 80 the actual port will
+      # be overriden by each of the containers that is added
+      # to the target group
+      Port: '80'
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '300'
+      VpcId: vpc-9c9714f9
+      # Use this name property to force the TargetGroup to be recreated whenever the load
+      # balancer is recreated. Otherwise CloudFormation tries to add the TargetGroup
+      # to the new load balancer before removing it from the old one. And that results
+      # in an error.
+      Name: !Sub "${AWS::StackName}-${AppLoadBalancerStack.Outputs.LoadBalancerEndingId}"
+
+  AppTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: LaraWebTask
+      Family: !Sub "${AWS::StackName}-App"
       ContainerDefinitions:
-      - Name: LaraContainer
+      - Name: App
         Image: !Ref LaraDockerImage
         Cpu: "512"
         PortMappings:
@@ -382,7 +408,7 @@ Resources:
         - Name: MODEL_JSON_LIST_URL
           Value: !Ref ModelJsonListURL
 
-  LaraLogGroup:
+  LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref CloudWatchLogGroup
@@ -396,13 +422,13 @@ Resources:
       ToPort: '3306'
       SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
-  LaraAppScaling:
+  AppScalingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
       Parameters:
-        ServiceName: !GetAtt LaraWebService.Outputs.Name
+        ServiceName: !GetAtt AppService.Name
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         MaxNumTasks: !Ref MaxNumLaraWebTasks
         MinNumTasks: !Ref MinNumLaraWebTasks
@@ -431,12 +457,12 @@ Resources:
         ScaleDownAlarmEvaluationPeriods: '5'
         ScaleDownAlarmPeriod: '60'
 
-  LaraWorkerTaskDefinition:
+  WorkerTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: LaraWorkerTask
+      Family: !Sub "${AWS::StackName}-Worker"
       ContainerDefinitions:
-      - Name: LaraWorkerContainer
+      - Name: Worker
         Image: !Ref LaraDockerImage
         Cpu: "512"
         Command:
@@ -650,20 +676,20 @@ Resources:
         - Name: MODEL_JSON_LIST_URL
           Value: !Ref ModelJsonListURL
 
-  LaraWorkerService:
+  WorkerService:
     Type: AWS::ECS::Service
     Properties:
-      TaskDefinition: !Ref "LaraWorkerTaskDefinition"
+      TaskDefinition: !Ref "WorkerTaskDefinition"
       DesiredCount: 1
       Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
 
-  LaraWorkerScaling:
+  WorkerScalingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
       Parameters:
-        ServiceName: !GetAtt LaraWorkerService.Name
+        ServiceName: !GetAtt WorkerService.Name
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         MaxNumTasks: '10'
         MinNumTasks: '1'
