@@ -1,4 +1,5 @@
-- the learn-report site appears to not be sending the user to the correct target group
+- need to update portal-ecs to use the refactor ecs-load-balancer. Might also want to
+  pull out the listeners, target groups, and service into a nested stack.
 
 - need to figure out how to notify the app when solr is restarted so we can automatically re-index it. Perhaps the best is if the app had an API to kick off a solr reindex (in the background), then there could be a startup script for the solr container which would hit this api after solr has started.
 
@@ -23,3 +24,7 @@ Some of it could be pulled out into a new template. But then passing the paramet
   also be updated separately. In many case two or more of the stacks would need to be to
   updated. If a DNS address was used the Solr piece could be independent.  If the tasks
   were split out then all of the stacks using those tasks would have to be updated.
+
+Steps for upgrading LARA after refactoring:
+- delete dns entry
+- delete or rename log group
