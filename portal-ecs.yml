@@ -112,53 +112,80 @@ Parameters:
     Type: String
 
 Resources:
-  PortalWebService:
+  LoadBalancerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-web-service.yml
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-load-balancer.yml
       Parameters:
-        ShortName: !Sub '${ShortName}App'
         LoadBalancerIdleTimeout: '180'
-        HealthCheckIntervalSeconds: '30'
-        HealthyThresholdCount: '2'
-        UnhealthyThresholdCount: '3'
-        HealthCheckTimeoutSeconds: '5'
-        HealthCheckPath: '/'
-        DeregistrationDelay: '300'
         DomainName: !Ref 'DomainName'
-        TaskDefinition: !Ref 'PortalWebTaskDefinition'
-        DesiredTaskCount: '1'
-        ContainerName: PortalContainer
-        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
-  PortalWebListener443:
+  AppService:
+    Type: AWS::ECS::Service
+    DependsOn:
+    - AppListener443
+    Properties:
+      Role: ecsServiceRole
+      TaskDefinition: !Ref AppTaskDefinition
+      DesiredCount: '1'
+      LoadBalancers:
+      - TargetGroupArn: !Ref AppTargetGroup
+        ContainerPort: '80'
+        ContainerName: App
+      Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+
+  AppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: '30'
+      HealthCheckProtocol: HTTP
+      HealthyThresholdCount: '2'
+      UnhealthyThresholdCount: '3'
+      HealthCheckTimeoutSeconds: '5'
+      # even though this is set to 80 the actual port will
+      # be overriden by each of the containers that is added
+      # to the target group
+      Port: '80'
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '300'
+      VpcId: vpc-9c9714f9
+      # Use this name property to force the TargetGroup to be recreated whenever the load
+      # balancer is recreated. Otherwise CloudFormation tries to add the TargetGroup
+      # to the new load balancer before removing it from the old one. And that results
+      # in an error.
+      Name: !Sub "${ShortName}App-${LoadBalancerStack.Outputs.LoadBalancerEndingId}"
+
+  AppListener443:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       Certificates:
       - CertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
       DefaultActions:
-      - TargetGroupArn: !GetAtt PortalWebService.Outputs.TargetGroup
+      - TargetGroupArn: !Ref AppTargetGroup
         Type: forward
-      LoadBalancerArn: !GetAtt PortalWebService.Outputs.LoadBalancer
+      LoadBalancerArn: !GetAtt LoadBalancerStack.Outputs.LoadBalancer
       Port: '443'
       Protocol: HTTPS
 
-  PortalHTTPSRedirect:
+  HTTPSRedirectStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-https-redirect.yml
       Parameters:
-        TargetGroupName: !Sub '${AWS::StackName}-${PortalWebService.Outputs.LoadBalancerEndingId}'
+        # LearnStagingRedirect
+        TargetGroupName: !Sub '${ShortName}Redir-${LoadBalancerStack.Outputs.LoadBalancerEndingId}'
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
-        LoadBalancerArn: !GetAtt PortalWebService.Outputs.LoadBalancer
+        LoadBalancerArn: !GetAtt LoadBalancerStack.Outputs.LoadBalancer
 
-  PortalWebTaskDefinition:
+  AppTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: PortalWebTask
+      Family: !Sub "${AWS::StackName}-App"
       ContainerDefinitions:
-      - Name: PortalContainer
+      - Name: App
         Image: !Ref PortalDockerImage
         Cpu: "512"
         PortMappings:
@@ -229,7 +256,7 @@ Resources:
         - Name: SMTP_USER
           Value: !Ref SMTPUser
         - Name: SOLR_HOST
-          Value: !GetAtt SolrService.Outputs.ELBDNSName # this should refer to the solr
+          Value: !GetAtt InternalLoadBalancerStack.Outputs.ELBDNSName # this should refer to the solr
         - Name: SOLR_PORT
           Value: '80'
         - Name: THEME
@@ -239,13 +266,13 @@ Resources:
         - Name: RESEARCHER_REPORT_HOST
           Value: !Sub "https://${ReportDomainName}"
 
-  PortalAppScaling:
+  AppScalingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
       Parameters:
-        ServiceName: !GetAtt PortalWebService.Outputs.Name
+        ServiceName: !GetAtt AppService.Name
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         MaxNumTasks: !Ref MaxNumWebTasks
         MinNumTasks: !Ref MinNumWebTasks
@@ -274,7 +301,7 @@ Resources:
         ScaleDownAlarmEvaluationPeriods: '5'
         ScaleDownAlarmPeriod: '60'
 
-  PortalLogGroup:
+  LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref CloudWatchLogGroup
@@ -288,12 +315,12 @@ Resources:
       ToPort: '3306'
       SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
-  PortalReportTaskDefinition:
+  ReportTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: PortalReportTask
+      Family: !Sub "${AWS::StackName}-Report"
       ContainerDefinitions:
-      - Name: PortalReportContainer
+      - Name: Report
         Image: !Ref PortalDockerImage
         Cpu: "512"
         PortMappings:
@@ -364,7 +391,7 @@ Resources:
         - Name: SMTP_USER
           Value: !Ref SMTPUser
         - Name: SOLR_HOST
-          Value: !GetAtt SolrService.Outputs.ELBDNSName # this should refer to the solr
+          Value: !GetAtt InternalLoadBalancerStack.Outputs.ELBDNSName # this should refer to the solr
         - Name: SOLR_PORT
           Value: '80'
         - Name: THEME
@@ -389,41 +416,39 @@ Resources:
       # balancer is recreated. Otherwise CloudFormation tries to add the TargetGroup
       # to the new load balancer before removing it from the old one. And that results
       # in an error.
-      Name: !Sub 'ReportTarget-${PortalWebService.Outputs.LoadBalancerEndingId}'
-
-  # we might want to use https://github.com/coreos/docker-nginx-https-redirect
-  # or something similiar to handle the https redirect, then we don't need to mess with
-  # the application code itself
+      Name: !Sub 'ReportTarget-${LoadBalancerStack.Outputs.LoadBalancerEndingId}'
 
   ReportDNS:
     Type: AWS::Route53::RecordSet
     Properties:
       AliasTarget:
-        DNSName: !GetAtt PortalWebService.Outputs.ELBDNSName
-        HostedZoneId: !GetAtt PortalWebService.Outputs.CanonicalHostedZoneID
+        DNSName: !GetAtt LoadBalancerStack.Outputs.ELBDNSName
+        HostedZoneId: !GetAtt LoadBalancerStack.Outputs.CanonicalHostedZoneID
       HostedZoneName: concord.org.
       Name: !Ref ReportDomainName
       Type: A
 
-  PortalReportService:
+  ReportService:
     Type: AWS::ECS::Service
+    DependsOn:
+    - AppListener443
     # The docs recommend adding a dependency on the load balancer listener hear
     # but I don't see why that is necessary so were are trying without it...
     Properties:
       Role: ecsServiceRole
-      TaskDefinition: !Ref PortalReportTaskDefinition
+      TaskDefinition: !Ref ReportTaskDefinition
       DesiredCount: '1'
       LoadBalancers:
       - TargetGroupArn: !Ref ReportTargetGroup
         ContainerPort: '80'
-        ContainerName: PortalReportContainer
+        ContainerName: Report
       Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
 
   # Send all requests to the report domain name to the report target group
-  PortalReportListenerRule:
+  ReportListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
-      ListenerArn: !Ref PortalWebListener443
+      ListenerArn: !Ref AppListener443
       Actions:
       - TargetGroupArn: !Ref ReportTargetGroup
         Type: forward
@@ -433,12 +458,12 @@ Resources:
         - !Ref ReportDomainName
       Priority: '1'
 
-  PortalWorkerTaskDefinition:
+  WorkerTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: PortalWorkerTask
+      Family: !Sub "${AWS::StackName}-Worker"
       ContainerDefinitions:
-      - Name: PortalWorkerContainer
+      - Name: Worker
         Image: !Ref PortalDockerImage
         Cpu: "512"
         Command:
@@ -506,7 +531,7 @@ Resources:
         - Name: SMTP_USER
           Value: !Ref SMTPUser
         - Name: SOLR_HOST
-          Value: !GetAtt SolrService.Outputs.ELBDNSName # this should refer to the solr
+          Value: !GetAtt InternalLoadBalancerStack.Outputs.ELBDNSName # this should refer to the solr
         - Name: SOLR_PORT
           Value: '80'
         - Name: THEME
@@ -514,20 +539,20 @@ Resources:
         - Name: TOP_LEVEL_CONTAINER_NAME
           Value: activity
 
-  PortalWorkerService:
+  WorkerService:
     Type: AWS::ECS::Service
     Properties:
-      TaskDefinition: !Ref PortalWorkerTaskDefinition
+      TaskDefinition: !Ref WorkerTaskDefinition
       DesiredCount: 1
       Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
 
-  PortalWorkerScaling:
+  WorkerScalingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
       Parameters:
-        ServiceName: !GetAtt PortalWorkerService.Name
+        ServiceName: !GetAtt WorkerService.Name
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         MaxNumTasks: '10'
         MinNumTasks: '1'
@@ -549,44 +574,67 @@ Resources:
         ScaleDownAlarmEvaluationPeriods: '5'
         ScaleDownAlarmPeriod: '60'
 
-  SolrService:
+  # This would probably be better if it was an external stack so it could be shared
+  # by all internal microservices. In that scenario we'd have to use dns entries pointing
+  # at this load balancer and listener rules to redirect to the right microservice
+  InternalLoadBalancerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-web-service.yml
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-load-balancer.yml
       Parameters:
-        ShortName: !Sub '${ShortName}Solr'
-        LoadBalancerIdleTimeout: '180'
-        HealthCheckIntervalSeconds: '30'
-        HealthCheckPath: '/solr/production/admin/ping'
-        HealthyThresholdCount: '2'
-        UnhealthyThresholdCount: '3'
-        HealthCheckTimeoutSeconds: '5'
-        DeregistrationDelay: '300'
-        TaskDefinition: !Ref 'SolrTaskDefinition'
         ELBScheme: internal
-        DesiredTaskCount: '1'
         DomainName: ''
-        ContainerName: SolrContainer
-        ContainerPort: '8983'
-        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+        LoadBalancerIdleTimeout: '180'
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+
+  SolrService:
+    Type: AWS::ECS::Service
+    DependsOn:
+    - SolrListener80
+    Properties:
+      Role: ecsServiceRole
+      TaskDefinition: !Ref 'SolrTaskDefinition'
+      DesiredCount: '1'
+      LoadBalancers:
+      - TargetGroupArn: !Ref SolrTargetGroup
+        ContainerPort: '8983'
+        ContainerName: Solr
+      Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+
+  SolrTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: '30'
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: '/solr/production/admin/ping'
+      HealthyThresholdCount: '2'
+      UnhealthyThresholdCount: '3'
+      HealthCheckTimeoutSeconds: '5'
+      Port: '80'
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '300'
+      VpcId: vpc-9c9714f9
+      Name: !Sub "${ShortName}Solr-${InternalLoadBalancerStack.Outputs.LoadBalancerEndingId}"
+
 
   SolrListener80:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       DefaultActions:
-      - TargetGroupArn: !GetAtt SolrService.Outputs.TargetGroup # !Ref 'ELBTargetGroup'
+      - TargetGroupArn: !Ref SolrTargetGroup # !Ref 'ELBTargetGroup'
         Type: forward
-      LoadBalancerArn: !GetAtt SolrService.Outputs.LoadBalancer # !Ref 'ELBv2'
+      LoadBalancerArn: !GetAtt InternalLoadBalancerStack.Outputs.LoadBalancer # !Ref 'ELBv2'
       Port: '80'
       Protocol: HTTP
 
   SolrTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: SolrTask
+      Family: !Sub "${AWS::StackName}-Solr"
       ContainerDefinitions:
-      - Name: SolrContainer
+      - Name: Solr
         Image: concordconsortium/docker-solr-portal
         Cpu: "512"
         PortMappings:
