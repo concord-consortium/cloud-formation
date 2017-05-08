@@ -4,11 +4,6 @@ Parameters:
   LoadBalancerIdleTimeout:
     Type: Number
     Description: how long in seconds load balancer should give idle connections.
-  DeregistrationDelay:
-    Type: Number
-    Description: |
-      The amount time for Elastic Load Balancing to wait before changing the state of a
-      deregistering target from draining to unused.
   DomainName:
     Type: String
     Description: |

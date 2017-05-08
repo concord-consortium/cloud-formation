@@ -119,7 +119,6 @@ Resources:
       TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-load-balancer.yml
       Parameters:
         LoadBalancerIdleTimeout: '180'
-        DeregistrationDelay: '300'
         DomainName: !Ref 'DomainName'
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
