@@ -110,6 +110,9 @@ Parameters:
     Type: String
   Theme:
     Type: String
+  JWTHMACSecret:
+    Type: String
+    Description: JWT HMAC Secret
 
 Resources:
   LoadBalancerStack:
@@ -265,6 +268,8 @@ Resources:
           Value: activity
         - Name: RESEARCHER_REPORT_HOST
           Value: !Sub "https://${ReportDomainName}"
+        - Name: JWT_HMAC_SECRET
+          Value: !Ref JWTHMACSecret
 
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
@@ -398,6 +403,8 @@ Resources:
           Value: !Ref Theme
         - Name: TOP_LEVEL_CONTAINER_NAME
           Value: activity
+        - Name: JWT_HMAC_SECRET
+          Value: !Ref JWTHMACSecret
         - Name: RESEARCHER_REPORT_ONLY
           Value: 'true'
 
@@ -538,6 +545,8 @@ Resources:
           Value: !Ref Theme
         - Name: TOP_LEVEL_CONTAINER_NAME
           Value: activity
+        - Name: JWT_HMAC_SECRET
+          Value: !Ref JWTHMACSecret
 
   WorkerService:
     Type: AWS::ECS::Service
@@ -651,3 +660,11 @@ Mappings:
       Id: arn:aws:iam::612297603577:server-certificate/cloudfront/E3JZ7YRBPKHWAC/cc.wildcard.until.2018
     star.staging.concord.org:
       Id: arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: "App Config"
+      Parameters:
+      - PortalDockerImage
