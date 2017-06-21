@@ -113,6 +113,11 @@ Parameters:
   JWTHMACSecret:
     Type: String
     Description: JWT HMAC Secret
+  PortalPagesLibraryURL:
+    Type: String
+    Description: location of the portal pages javascript and css that will be added to all
+      web pages of the portal. This URL should be versioned so there are no issues with
+      caching.
 
 Resources:
   LoadBalancerStack:
@@ -270,6 +275,8 @@ Resources:
           Value: !Sub "https://${ReportDomainName}"
         - Name: JWT_HMAC_SECRET
           Value: !Ref JWTHMACSecret
+        - Name: PORTAL_PAGES_LIBRARY_URL
+          Value: !Ref PortalPagesLibraryURL
 
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
@@ -405,6 +412,8 @@ Resources:
           Value: activity
         - Name: JWT_HMAC_SECRET
           Value: !Ref JWTHMACSecret
+        - Name: PORTAL_PAGES_LIBRARY_URL
+          Value: !Ref PortalPagesLibraryURL
         - Name: RESEARCHER_REPORT_ONLY
           Value: 'true'
 
@@ -547,6 +556,8 @@ Resources:
           Value: activity
         - Name: JWT_HMAC_SECRET
           Value: !Ref JWTHMACSecret
+        - Name: PORTAL_PAGES_LIBRARY_URL
+          Value: !Ref PortalPagesLibraryURL
 
   WorkerService:
     Type: AWS::ECS::Service
