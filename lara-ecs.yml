@@ -34,19 +34,19 @@ Parameters:
       this to true
   ITSIDemoSecret:
     Type: String
-    Description: The OAuth2 key to authenticate via itsi-demo. If this is not, set the portal
+    Description: The OAuth2 key to authenticate via itsi-demo. If this is not set, the portal
       will not be configured.
-  LearnDockerSecret:
+  LearnStemSecret:
     Type: String
-    Description: The OAuth2 key to authenticate via learn-docker. If this is not, set the portal
+    Description: The OAuth2 key to authenticate via learn-stem. If this is not set, the portal
       will not be configured.
   LearnStagingSecret:
     Type: String
-    Description: The OAuth2 key to authenticate via learn.staging. If this is not, set the portal
+    Description: The OAuth2 key to authenticate via learn.staging. If this is not set, the portal
       will not be configured.
   AssessmentPortalSecret:
     Type: String
-    Description: The OAuth2 key to authenticate via asessment.portal. If this is not, set the portal
+    Description: The OAuth2 key to authenticate via asessment.portal. If this is not set, the portal
       will not be configured.
   HASPortalSecret:
     Type: String
@@ -105,7 +105,7 @@ Parameters:
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
   AddITSIDemo: !Not [!Equals [!Ref ITSIDemoSecret, ""]]
-  AddLearnDocker: !Not [!Equals [!Ref LearnDockerSecret, ""]]
+  AddLearnStem: !Not [!Equals [!Ref LearnStemSecret, ""]]
   AddLearnStaging: !Not [!Equals [!Ref LearnStagingSecret, ""]]
   AddAssessmentPortal: !Not [!Equals [!Ref AssessmentPortalSecret, ""]]
   AddHASPortal: !Not [!Equals [!Ref HASPortalSecret, ""]]
@@ -207,7 +207,7 @@ Resources:
           - ' '
           - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
-            - !If [ AddLearnDocker, LEARN_DOCKER_STAGING, !Ref 'AWS::NoValue']
+            - !If [ AddLearnStem, LEARN_STEM_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddITSIDemo, ITSI_DEMO, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
             - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
@@ -253,21 +253,21 @@ Resources:
             Value: http://itsi.portal-demo.concord.org/
           - !Ref 'AWS::NoValue'
 
-        # learn docker staging configuration
+        # learn stem staging configuration
         - !If
-          - AddLearnDocker
-          - Name: CONCORD_LEARN_DOCKER_STAGING_CLIENT_ID
-            Value: authoring-docker
+          - AddLearnStem
+          - Name: CONCORD_LEARN_STEM_STAGING_CLIENT_ID
+            Value: authoring
           - !Ref 'AWS::NoValue'
         - !If
-          - AddLearnDocker
-          - Name: CONCORD_LEARN_DOCKER_STAGING_CLIENT_SECRET
-            Value: !Ref LearnDockerSecret
+          - AddLearnStem
+          - Name: CONCORD_LEARN_STEM_STAGING_CLIENT_SECRET
+            Value: !Ref LearnStemSecret
           - !Ref 'AWS::NoValue'
         - !If
-          - AddLearnDocker
-          - Name: CONCORD_LEARN_DOCKER_STAGING_URL
-            Value: https://learn-docker.staging.concord.org/
+          - AddLearnStem
+          - Name: CONCORD_LEARN_STEM_STAGING_URL
+            Value: https://learn-stem.staging.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn staging configuration
@@ -481,7 +481,7 @@ Resources:
           - ' '
           - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
-            - !If [ AddLearnDocker, LEARN_DOCKER_STAGING, !Ref 'AWS::NoValue']
+            - !If [ AddLearnStem, LEARN_STEM_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddITSIDemo, ITSI_DEMO, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
             - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
@@ -529,19 +529,19 @@ Resources:
 
         # learn docker staging configuration
         - !If
-          - AddLearnDocker
-          - Name: CONCORD_LEARN_DOCKER_STAGING_CLIENT_ID
-            Value: authoring-docker
+          - AddLearnStem
+          - Name: CONCORD_LEARN_STEM_STAGING_CLIENT_ID
+            Value: authoring
           - !Ref 'AWS::NoValue'
         - !If
-          - AddLearnDocker
-          - Name: CONCORD_LEARN_DOCKER_STAGING_CLIENT_SECRET
-            Value: !Ref LearnDockerSecret
+          - AddLearnStem
+          - Name: CONCORD_LEARN_STEM_STAGING_CLIENT_SECRET
+            Value: !Ref LearnStemSecret
           - !Ref 'AWS::NoValue'
         - !If
-          - AddLearnDocker
-          - Name: CONCORD_LEARN_DOCKER_STAGING_URL
-            Value: https://learn-docker.staging.concord.org/
+          - AddLearnStem
+          - Name: CONCORD_LEARN_STEM_STAGING_URL
+            Value: https://learn-stem.staging.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn staging configuration
@@ -742,7 +742,7 @@ Metadata:
       - HASPortalSecret
       - ITSIDemoSecret
       - ITSIPortalSecret
-      - LearnDockerSecret
+      - LearnStemSecret
       - LearnPortalSecret
       - LearnStagingSecret
     - Label:
