@@ -615,6 +615,14 @@ Resources:
       Role: ecsServiceRole
       TaskDefinition: !Ref 'SolrTaskDefinition'
       DesiredCount: '1'
+      # For consitency we need to make sure that only one task can run in the solr service
+      # at a time.  Otherwise the portal might update a search document in the old solr
+      # task while a new one is starting up. This will result in lost search results.
+      # this approach of only one a time also helps with the automatic reindexing that
+      # is triggered when the new solr instance starts up
+      DeploymentConfiguration:
+        MaximumPercent: '100'
+        MinimumHealthyPercent: '0'
       LoadBalancers:
       - TargetGroupArn: !Ref SolrTargetGroup
         ContainerPort: '8983'
@@ -633,8 +641,10 @@ Resources:
       Port: '80'
       Protocol: HTTP
       TargetGroupAttributes:
+      # there should be very few long running connections to solr so it should be OK
+      # to keep this value small
       - Key: deregistration_delay.timeout_seconds
-        Value: '300'
+        Value: '20'
       VpcId: vpc-9c9714f9
       Name: !Sub "${ShortName}Solr-${InternalLoadBalancerStack.Outputs.LoadBalancerEndingId}"
 
