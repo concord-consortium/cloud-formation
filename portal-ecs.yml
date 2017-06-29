@@ -655,7 +655,7 @@ Resources:
       Family: !Sub "${AWS::StackName}-Solr"
       ContainerDefinitions:
       - Name: Solr
-        Image: concordconsortium/docker-solr-portal
+        Image: concordconsortium/docker-solr-portal:v1.0.0
         Cpu: "512"
         PortMappings:
         - ContainerPort: '8983'
@@ -664,6 +664,19 @@ Resources:
         - /opt/solr/rigse-solr-docker/start-solr.sh
         Memory: "900"
         Essential: "true"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-region: us-east-1
+            awslogs-group: !Ref CloudWatchLogGroup
+            awslogs-stream-prefix: portal
+        Environment:
+        # Solr will send a request to this endpoint once it gets a successful ping response
+        - Name: SERVICE_API_ENDPOINT
+          Value: !Sub "${SiteURL}/api/v1/service/solr_initialized"
+        # URL to ping
+        - Name: SOLR_PING_URL
+          Value: http://localhost:8983/solr/production/admin/ping
 
 Mappings:
   SSLCertificateMap:
