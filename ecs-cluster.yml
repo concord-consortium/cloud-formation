@@ -22,13 +22,22 @@ Parameters:
     Default: "subnet-7fb16326,subnet-09c2dd40"
   AsgMaxSize:
     Type: Number
-    Description: Maxium size of ECS Cluster Auto Scaler
+    Description: Maxium size of ECS Cluster Auto Scaler. To be safe this should be double
+      the current size so the rolling update has plenty of room to spin up new instances
   AsgMinSize:
     Type: Number
     Description: Minium size of ECS Cluster Auto Scaler
   AsgInitialSize:
     Type: Number
-    Description: Initial desired size of ECS Cluster Auto Scaler
+    Description: Initial desired size of ECS Cluster Auto Scaler. When doing a rolling update
+      this should be set to be the current size of the auto scaling group.
+  MinInstancesInServiceDuringUpdate:
+    Type: Number
+    Description: During a rolling update of the autoscaling group this value determines
+      how many instances should be kept up and running. It seems this number needs to be
+      large enough for ECS to keep all of the current services running. Otherwise the
+      instances are not terminated which prevents the rolling update from progressing as
+      the cloudformation rolling update code expects
   EcsClusterName:
     Type: String
     Description: ECS Cluster Name
@@ -117,24 +126,22 @@ Resources:
           This instance is the part of an Auto Scaling group for an ECS cluster. These
           resources were all created by the Cloud Formation stack ${AWS::StackName}
         PropagateAtLaunch: true
-    CreationPolicy:
-      AutoScalingCreationPolicy:
-        MinSuccessfulInstancesPercent: "100"
-      ResourceSignal:
-        Timeout: PT15M
     # A rolling update is needed so the autoscaler uses the termination lifecycle of the
     # instances. That way the lambda function can move the tasks to the new instance.
     UpdatePolicy:
       AutoScalingRollingUpdate:
-        MinSuccessfulInstancesPercent: "100"
+        MinSuccessfulInstancesPercent: "80"
         # this will make it wait on the cfn-signal above before marking the instance
         # as successful
         WaitOnResourceSignals: true
-        MinInstancesInService: 1
+        MinInstancesInService: !Ref MinInstancesInServiceDuringUpdate
         PauseTime: PT5M
-        SuspendProcesses: [AlarmNotification, ScheduledActions]
-      AutoScalingReplacingUpdate:
-        WillReplace: false
+        SuspendProcesses:
+        - AlarmNotification
+        - ScheduledActions
+        - HealthCheck
+        - ReplaceUnhealthy
+        - AZRebalance
       AutoScalingScheduledAction:
         IgnoreUnmodifiedGroupSizeProperties: 'true'
 
