@@ -341,7 +341,7 @@ Resources:
         - bash
         - '-c'
         - 'chmod a+x docker/prod/run.sh && docker/prod/run.sh'
-        Memory: "900"
+        Memory: "1800"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
