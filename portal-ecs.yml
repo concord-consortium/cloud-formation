@@ -341,7 +341,7 @@ Resources:
         - bash
         - '-c'
         - 'chmod a+x docker/prod/run.sh && docker/prod/run.sh'
-        Memory: "1800"
+        Memory: "2500"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
@@ -416,6 +416,8 @@ Resources:
           Value: !Ref PortalPagesLibraryURL
         - Name: RESEARCHER_REPORT_ONLY
           Value: 'true'
+        - Name: UNICORN_TIMEOUT
+          Value: '300'
 
   # Need ECS Service definition
   ReportTargetGroup:
