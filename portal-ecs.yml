@@ -136,7 +136,7 @@ Resources:
     Properties:
       Role: ecsServiceRole
       TaskDefinition: !Ref AppTaskDefinition
-      DesiredCount: '1'
+      DesiredCount: !Ref MinNumWebTasks
       LoadBalancers:
       - TargetGroupArn: !Ref AppTargetGroup
         ContainerPort: '80'
@@ -202,7 +202,7 @@ Resources:
         - bash
         - '-c'
         - 'chmod a+x docker/prod/run.sh && docker/prod/run.sh'
-        Memory: "900"
+        Memory: "1200"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
