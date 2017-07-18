@@ -118,6 +118,9 @@ Parameters:
     Description: location of the portal pages javascript and css that will be added to all
       web pages of the portal. This URL should be versioned so there are no issues with
       caching.
+  ASNAPIKey:
+    Type: String
+    Description: key to access the ASN apis for searching standards
 
 Resources:
   LoadBalancerStack:
@@ -277,6 +280,8 @@ Resources:
           Value: !Ref JWTHMACSecret
         - Name: PORTAL_PAGES_LIBRARY_URL
           Value: !Ref PortalPagesLibraryURL
+        - Name: ASN_API_KEY
+          Value: !Ref ASNAPIKey
 
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
@@ -565,6 +570,8 @@ Resources:
           Value: !Ref JWTHMACSecret
         - Name: PORTAL_PAGES_LIBRARY_URL
           Value: !Ref PortalPagesLibraryURL
+        - Name: ASN_API_KEY
+          Value: !Ref ASNAPIKey
 
   WorkerService:
     Type: AWS::ECS::Service
