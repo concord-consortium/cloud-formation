@@ -12,7 +12,7 @@ Parameters:
     MaxLength: '12'
   SSLCertificateName:
     Type: String
-    AllowedValues: [star.concord.org, star.staging.concord.org]
+    AllowedValues: [star.concord.org, star.portal.concord.org, star.staging.concord.org]
     Description: Two certificates are registered with AWS choose which one to use for the
       load balancer
   DatabaseSecurityGroupId:
@@ -40,7 +40,10 @@ Parameters:
     Description: The hostname of the database. Template assumes database name is portal.
   DbPassword:
     Type: String
-    Description: The password of the database. Template assumes username is master.
+    Description: The password of the database.
+  DbUserName:
+    Type: String
+    Default: master
   NewRelicAppName:
     Type: String
     Description: App name to show in NewRelic
@@ -118,6 +121,10 @@ Parameters:
     Description: location of the portal pages javascript and css that will be added to all
       web pages of the portal. This URL should be versioned so there are no issues with
       caching.
+  ExternalCSSURL:
+    Type: String
+    Description: location of an additional css file that will be added to every page
+      in the Portal.
   ASNAPIKey:
     Type: String
     Description: key to access the ASN apis for searching standards
@@ -229,7 +236,7 @@ Resources:
         - Name: DB_PASSWORD
           Value: !Ref DbPassword
         - Name: DB_USER
-          Value: master
+          Value: !Ref DbUserName
         - Name: HELP_EMAIL
           Value: !Ref HelpEmail
         - Name: NEW_RELIC_APP_NAME
@@ -284,6 +291,8 @@ Resources:
           Value: !Ref JWTHMACSecret
         - Name: PORTAL_PAGES_LIBRARY_URL
           Value: !Ref PortalPagesLibraryURL
+        - Name: EXTERNAL_CSS_URL
+          Value: !Ref ExternalCSSURL
         - Name: ASN_API_KEY
           Value: !Ref ASNAPIKey
         - Name: RESTART_TOGGLE
@@ -372,7 +381,7 @@ Resources:
         - Name: DB_PASSWORD
           Value: !Ref DbPassword
         - Name: DB_USER
-          Value: master
+          Value: !Ref DbUserName
         - Name: HELP_EMAIL
           Value: !Ref HelpEmail
         - Name: NEW_RELIC_APP_NAME
@@ -425,6 +434,8 @@ Resources:
           Value: !Ref JWTHMACSecret
         - Name: PORTAL_PAGES_LIBRARY_URL
           Value: !Ref PortalPagesLibraryURL
+        - Name: EXTERNAL_CSS_URL
+          Value: !Ref ExternalCSSURL
         - Name: RESEARCHER_REPORT_ONLY
           Value: 'true'
         - Name: UNICORN_TIMEOUT
@@ -525,7 +536,7 @@ Resources:
         - Name: DB_PASSWORD
           Value: !Ref DbPassword
         - Name: DB_USER
-          Value: master
+          Value: !Ref DbUserName
         - Name: HELP_EMAIL
           Value: !Ref HelpEmail
         - Name: NEW_RELIC_APP_NAME
@@ -578,6 +589,8 @@ Resources:
           Value: !Ref JWTHMACSecret
         - Name: PORTAL_PAGES_LIBRARY_URL
           Value: !Ref PortalPagesLibraryURL
+        - Name: EXTERNAL_CSS_URL
+          Value: !Ref ExternalCSSURL
         - Name: ASN_API_KEY
           Value: !Ref ASNAPIKey
         - Name: RESTART_TOGGLE
@@ -716,6 +729,8 @@ Mappings:
   SSLCertificateMap:
     star.concord.org:
       Id: arn:aws:iam::612297603577:server-certificate/cloudfront/E3JZ7YRBPKHWAC/cc.wildcard.until.2018
+    star.portal.concord.org:
+      Id: arn:aws:acm:us-east-1:612297603577:certificate/4341186a-57a0-4df1-8b61-05969febe57a
     star.staging.concord.org:
       Id: arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560
 
