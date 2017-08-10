@@ -45,6 +45,8 @@ Resources:
       HostedZoneName: concord.org.
       Name: !Ref DomainName
       Type: A
+      Weight: 100
+      SetIdentifier: CloudFormation ecs-load-balancer
 
   LoadBalancerSG:
     Type: AWS::EC2::SecurityGroup
