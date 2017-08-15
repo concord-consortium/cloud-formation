@@ -131,10 +131,17 @@ Parameters:
   GoogleAnalyticsAccount:
     Type: String
     Description: key for Google Analytics
+  GoogleClientKey:
+    Type: String
+    Description: key for Google SSO OAuth2
+  GoogleClientSecret:
+    Type: String
+    Description: secret for Google SSO OAuth2
   RestartToggle:
     Type: String
     Description: change this value to cause a rolling restart of the containers running
       portal code. This is necessary after running migrations.
+
 
 Resources:
   LoadBalancerStack:
@@ -300,6 +307,10 @@ Resources:
           Value: !Ref ASNAPIKey
         - Name: GOOGLE_ANALYTICS_ACCOUNT
           Value: !Ref GoogleAnalyticsAccount
+        - Name: GOOGLE_CLIENT_KEY
+          Value: !Ref GoogleClientKey
+        - Name: GOOGLE_CLIENT_SECRET
+          Value: !Ref GoogleClientSecret
         - Name: RESTART_TOGGLE
           Value: RestartToggle
 
@@ -447,6 +458,10 @@ Resources:
           Value: '300'
         - Name: GOOGLE_ANALYTICS_ACCOUNT
           Value: !Ref GoogleAnalyticsAccount
+        - Name: GOOGLE_CLIENT_KEY
+          Value: !Ref GoogleClientKey
+        - Name: GOOGLE_CLIENT_SECRET
+          Value: !Ref GoogleClientSecret
         - Name: RESTART_TOGGLE
           Value: RestartToggle
 
@@ -602,6 +617,10 @@ Resources:
           Value: !Ref ASNAPIKey
         - Name: GOOGLE_ANALYTICS_ACCOUNT
           Value: !Ref GoogleAnalyticsAccount
+        - Name: GOOGLE_CLIENT_KEY
+          Value: !Ref GoogleClientKey
+        - Name: GOOGLE_CLIENT_SECRET
+          Value: !Ref GoogleClientSecret
         - Name: RESTART_TOGGLE
           Value: RestartToggle
 
