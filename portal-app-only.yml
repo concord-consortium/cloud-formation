@@ -1,0 +1,367 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: portal ecs stack
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    AllowedValues: [staging, production]
+    Description: Enter staging or production. Default is staging.
+  ShortName:
+    Type: String
+    Description: 12 character or less name to use for naming created resources
+    MaxLength: '12'
+  SSLCertificateName:
+    Type: String
+    AllowedValues: [star.concord.org, star.portal.concord.org, star.staging.concord.org]
+    Description: Two certificates are registered with AWS choose which one to use for the
+      load balancer
+  DatabaseSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Select security group of the RDS database. This security group will
+      be modified to allow access by the EC2 instances in this stack
+  DomainName:
+    Type: String
+    Description: The DNS name that will be created or updated to point at the load
+      balancer
+  ReportDomainName:
+    Type: String
+    Description: The DNS name of a secondary server that is configured to only handle reports
+      the main server will redirect users to this secondary server. This host will be accessed
+      with https so the name needs to work with the selected SSL certificate.
+
+  ClusterStackName:
+    Type: String
+    Description: The name of the CloudFormation stack that manages the cluster you want
+      this application deployed in.  The cluster security group will be added to the
+      database security group to allow the app to access the database.
+
+  DbHost:
+    Type: String
+    Description: The hostname of the database. Template assumes database name is portal.
+  DbPassword:
+    Type: String
+    Description: The password of the database.
+  DbUserName:
+    Type: String
+    Default: master
+  NewRelicAppName:
+    Type: String
+    Description: App name to show in NewRelic
+  NewRelicLicenseKey:
+    Type: String
+
+  CloudWatchLogGroup:
+    Type: String
+    Description: logging group in cloud watch where the aws logs will be sent
+  MaxNumWebTasks:
+    Type: String
+    Description: maxium number of Portal Web tasks the autoscaler will spin up
+  MinNumWebTasks:
+    Type: String
+    Description: minimum number of Portal Web tasks the autoscaler will spin up
+  PortalDockerImage:
+    Type: String
+    Description: docker image to use for the web container and worker container
+
+  AdminEmail:
+    Type: String
+    Description: email address used as from address for some automated messages
+    Default: learn-help@concord.org
+  AuthoringSiteURL:
+    Type: String
+    Description: URL to the authoring site, this is used for importing activities and a
+      convience link.
+    Default: https://authoring.staging.concord.org
+  HelpEmail:
+    Type: String
+    Description: email address added to various pages so users can contact us
+    Default: learn-help@concord.org
+  PadletPassword:
+    Type: String
+  PadletUser:
+    Type: String
+  PortalFeatures:
+    Type: String
+    Description: list of rails engines to load to support exstra features
+  ReportViewURL:
+    Type: String
+    Description: URL of the portal report it must have a domain of either
+      portal-report.concord.org or concord-consortium.github.io
+  S3AccessKeyId:
+    Type: String
+  S3SecreateAccessKey:
+    Type: String
+  S3Bucket:
+    Type: String
+    Description: name of the bucket not including any region identifiers
+  SchoologyConsumerKey:
+    Type: String
+  SchoologyConsumerSecret:
+    Type: String
+  SiteKey:
+    Type: String
+  SiteName:
+    Type: String
+  SiteURL:
+    Type: String
+    Description: this is used in places where we need to provide URLs back to this app.
+      These references are minimized to only where they are necessary. Examples are in the
+      automated email messages, and when providing return urls to external activities.
+  SMTPUser:
+    Type: String
+  SMTPPassword:
+    Type: String
+  Theme:
+    Type: String
+  JWTHMACSecret:
+    Type: String
+    Description: JWT HMAC Secret
+  PortalPagesLibraryURL:
+    Type: String
+    Description: location of the portal pages javascript and css that will be added to all
+      web pages of the portal. This URL should be versioned so there are no issues with
+      caching.
+  ExternalCSSURL:
+    Type: String
+    Description: location of an additional css file that will be added to every page
+      in the Portal.
+  ASNAPIKey:
+    Type: String
+    Description: key to access the ASN apis for searching standards
+  GoogleAnalyticsAccount:
+    Type: String
+    Description: key for Google Analytics
+  GoogleClientKey:
+    Type: String
+    Description: key for Google SSO OAuth2
+  GoogleClientSecret:
+    Type: String
+    Description: secret for Google SSO OAuth2
+  RestartToggle:
+    Type: String
+    Description: change this value to cause a rolling restart of the containers running
+      portal code. This is necessary after running migrations.
+  SolrLoadBalancerHostName:
+    Type: String
+    Description: This is the host name of the internal load balancer setup by the main
+      stack.  You can find it in the Outputs of the InternalLoadBalancerStack. It is the
+      ELBDNSName property.
+
+
+Resources:
+  LoadBalancerStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-load-balancer.yml
+      Parameters:
+        LoadBalancerIdleTimeout: '180'
+        DomainName: !Ref 'DomainName'
+        ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+
+  AppService:
+    Type: AWS::ECS::Service
+    DependsOn:
+    - AppListener443
+    Properties:
+      Role: ecsServiceRole
+      TaskDefinition: !Ref AppTaskDefinition
+      DesiredCount: !Ref MinNumWebTasks
+      LoadBalancers:
+      - TargetGroupArn: !Ref AppTargetGroup
+        ContainerPort: '80'
+        ContainerName: App
+      Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+
+  AppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: '30'
+      HealthCheckProtocol: HTTP
+      HealthyThresholdCount: '2'
+      UnhealthyThresholdCount: '3'
+      HealthCheckTimeoutSeconds: '5'
+      # even though this is set to 80 the actual port will
+      # be overriden by each of the containers that is added
+      # to the target group
+      Port: '80'
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '120'
+      VpcId: vpc-9c9714f9
+      # Use this name property to force the TargetGroup to be recreated whenever the load
+      # balancer is recreated. Otherwise CloudFormation tries to add the TargetGroup
+      # to the new load balancer before removing it from the old one. And that results
+      # in an error.
+      Name: !Sub "${ShortName}App-${LoadBalancerStack.Outputs.LoadBalancerEndingId}"
+
+  AppListener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+      - CertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
+      DefaultActions:
+      - TargetGroupArn: !Ref AppTargetGroup
+        Type: forward
+      LoadBalancerArn: !GetAtt LoadBalancerStack.Outputs.LoadBalancer
+      Port: '443'
+      Protocol: HTTPS
+
+  AppTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${AWS::StackName}-App"
+      ContainerDefinitions:
+      - Name: App
+        Image: !Ref PortalDockerImage
+        Cpu: "512"
+        PortMappings:
+        - ContainerPort: '80'
+        Command:
+        - bash
+        - '-c'
+        - 'chmod a+x docker/prod/run.sh && docker/prod/run.sh'
+        Memory: "1200"
+        Essential: "true"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-region: us-east-1
+            awslogs-group: !Ref CloudWatchLogGroup
+            awslogs-stream-prefix: portal
+        Environment:
+        - Name: ADMIN_EMAIL
+          Value: !Ref AdminEmail
+        - Name: AUTHORING_SITE_URL
+          Value: !Ref AuthoringSiteURL
+        - Name: DB_HOST
+          Value: !Ref DbHost
+        - Name: DB_NAME
+          Value: portal
+        - Name: DB_PASSWORD
+          Value: !Ref DbPassword
+        - Name: DB_USER
+          Value: !Ref DbUserName
+        - Name: HELP_EMAIL
+          Value: !Ref HelpEmail
+        - Name: NEW_RELIC_APP_NAME
+          Value: !Ref NewRelicAppName
+        - Name: NEW_RELIC_LICENSE_KEY
+          Value: !Ref NewRelicLicenseKey
+        - Name: NUM_UNICORN_PROCESSES
+          Value: '2'
+        - Name: PADLET_PASSWORD
+          Value: !Ref PadletPassword
+        - Name: PADLET_USER
+          Value: !Ref PadletUser
+        - Name: PORTAL_FEATURES
+          Value: !Ref PortalFeatures
+        - Name: RAILS_STDOUT_LOGGING
+          Value: 'true'
+        - Name: REPORT_DOMAINS
+          Value: portal-report.concord.org concord-consortium.github.io
+        - Name: REPORT_VIEW_URL
+          Value: !Ref ReportViewURL
+        - Name: S3_ACCESS_KEY_ID
+          Value: !Ref S3AccessKeyId
+        - Name: S3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: S3_SECRET_ACCESS_KEY
+          Value: !Ref S3SecreateAccessKey
+        - Name: SCHOOLOGY_CONSUMER_KEY
+          Value: !Ref SchoologyConsumerKey
+        - Name: SCHOOLOGY_CONSUMER_SECRET
+          Value: !Ref SchoologyConsumerSecret
+        - Name: SITE_KEY
+          Value: !Ref SiteKey
+        - Name: SITE_NAME
+          Value: !Ref SiteName
+        - Name: SITE_URL
+          Value: !Ref SiteURL
+        - Name: SMTP_PASS
+          Value: !Ref SMTPPassword
+        - Name: SMTP_USER
+          Value: !Ref SMTPUser
+        - Name: SOLR_HOST
+          Value: !Ref SolrLoadBalancerHostName
+        - Name: SOLR_PORT
+          Value: '80'
+        - Name: THEME
+          Value: !Ref Theme
+        - Name: TOP_LEVEL_CONTAINER_NAME
+          Value: activity
+        - Name: RESEARCHER_REPORT_HOST
+          Value: !Sub "https://${ReportDomainName}"
+        - Name: JWT_HMAC_SECRET
+          Value: !Ref JWTHMACSecret
+        - Name: PORTAL_PAGES_LIBRARY_URL
+          Value: !Ref PortalPagesLibraryURL
+        - Name: EXTERNAL_CSS_URL
+          Value: !Ref ExternalCSSURL
+        - Name: ASN_API_KEY
+          Value: !Ref ASNAPIKey
+        - Name: GOOGLE_ANALYTICS_ACCOUNT
+          Value: !Ref GoogleAnalyticsAccount
+        - Name: GOOGLE_CLIENT_KEY
+          Value: !Ref GoogleClientKey
+        - Name: GOOGLE_CLIENT_SECRET
+          Value: !Ref GoogleClientSecret
+        - Name: RESTART_TOGGLE
+          Value: RestartToggle
+
+  AppScalingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      # Change to location of scaling Template
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      Parameters:
+        ServiceName: !GetAtt AppService.Name
+        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+        MaxNumTasks: !Ref MaxNumWebTasks
+        MinNumTasks: !Ref MinNumWebTasks
+        # we are using a longer alarm evaluation period to deal with the cooldown
+        # period. There might be a better way to handle this.
+        ScaleUpCooldown: '0'
+        ScaleUpStepBoundary: '25'
+        ScaleUpStepAdjustment1: '100'
+        ScaleUpStepAdjustment2: '200'
+        ScaleUpAlarmThreshold: '75'
+        # this 2 minute evaluation period helps with an initial spike
+        # when a new container is started, and it also helps the CPUUtilization start
+        # to reflect the change in capacity. This is also the point of the Cooldown setting
+        # but in that case I think it prevents more scaling up if we aren't able to keep up
+        # with demand.
+        ScaleUpAlarmEvaluationPeriods: '2'
+        ScaleUpAlarmPeriod: '60'
+        ScaleDownCooldown: '300'
+        ScaleDownStepAdjustment: '-1'
+        ScaleDownAlarmThreshold: '35'
+        # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
+        # this approach helps offset a running average affecting the responsiveness.
+        # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
+        # could be below 35%. However with 5 evaluation periods, then the 49% will cancel
+        # the alarm.
+        ScaleDownAlarmEvaluationPeriods: '5'
+        ScaleDownAlarmPeriod: '60'
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref CloudWatchLogGroup
+
+Mappings:
+  SSLCertificateMap:
+    star.concord.org:
+      Id: arn:aws:iam::612297603577:server-certificate/cloudfront/E3JZ7YRBPKHWAC/cc.wildcard.until.2018
+    star.portal.concord.org:
+      Id: arn:aws:acm:us-east-1:612297603577:certificate/4341186a-57a0-4df1-8b61-05969febe57a
+    star.staging.concord.org:
+      Id: arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: "App Config"
+      Parameters:
+      - PortalDockerImage
