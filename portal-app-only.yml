@@ -23,11 +23,6 @@ Parameters:
     Type: String
     Description: The DNS name that will be created or updated to point at the load
       balancer
-  ReportDomainName:
-    Type: String
-    Description: The DNS name of a secondary server that is configured to only handle reports
-      the main server will redirect users to this secondary server. This host will be accessed
-      with https so the name needs to work with the selected SSL certificate.
 
   ClusterStackName:
     Type: String
@@ -146,6 +141,14 @@ Parameters:
     Description: This is the host name of the internal load balancer setup by the main
       stack.  You can find it in the Outputs of the InternalLoadBalancerStack. It is the
       ELBDNSName property.
+  DynamicRobotsTxt:
+    Type: String
+    Description: set to true to have portal generate robots.txt otherwise the default
+      robots.txt will be used which denies all access
+    Default: false
+    AllowedValues:
+    - true
+    - false
 
 
 Resources:
@@ -290,8 +293,6 @@ Resources:
           Value: !Ref Theme
         - Name: TOP_LEVEL_CONTAINER_NAME
           Value: activity
-        - Name: RESEARCHER_REPORT_HOST
-          Value: !Sub "https://${ReportDomainName}"
         - Name: JWT_HMAC_SECRET
           Value: !Ref JWTHMACSecret
         - Name: PORTAL_PAGES_LIBRARY_URL
@@ -307,7 +308,9 @@ Resources:
         - Name: GOOGLE_CLIENT_SECRET
           Value: !Ref GoogleClientSecret
         - Name: RESTART_TOGGLE
-          Value: RestartToggle
+          Value: !Ref RestartToggle
+        - Name: DYNAMIC_ROBOTS_TXT
+          Value: !Ref DynamicRobotsTxt
 
   AppScalingStack:
     Type: AWS::CloudFormation::Stack

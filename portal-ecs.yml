@@ -141,7 +141,14 @@ Parameters:
     Type: String
     Description: change this value to cause a rolling restart of the containers running
       portal code. This is necessary after running migrations.
-
+  DynamicRobotsTxt:
+    Type: String
+    Description: set to true to have portal generate robots.txt otherwise the default
+      robots.txt will be used which denies all access
+    Default: false
+    AllowedValues:
+    - true
+    - false
 
 Resources:
   LoadBalancerStack:
@@ -312,7 +319,9 @@ Resources:
         - Name: GOOGLE_CLIENT_SECRET
           Value: !Ref GoogleClientSecret
         - Name: RESTART_TOGGLE
-          Value: RestartToggle
+          Value: !Ref RestartToggle
+        - Name: DYNAMIC_ROBOTS_TXT
+          Value: !Ref DynamicRobotsTxt
 
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
@@ -463,7 +472,7 @@ Resources:
         - Name: GOOGLE_CLIENT_SECRET
           Value: !Ref GoogleClientSecret
         - Name: RESTART_TOGGLE
-          Value: RestartToggle
+          Value: !Ref RestartToggle
 
   # Need ECS Service definition
   ReportTargetGroup:
@@ -622,7 +631,8 @@ Resources:
         - Name: GOOGLE_CLIENT_SECRET
           Value: !Ref GoogleClientSecret
         - Name: RESTART_TOGGLE
-          Value: RestartToggle
+          Value: !Ref RestartToggle
+
 
   WorkerService:
     Type: AWS::ECS::Service
