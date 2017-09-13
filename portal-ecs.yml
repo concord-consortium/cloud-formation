@@ -322,6 +322,8 @@ Resources:
           Value: !Ref RestartToggle
         - Name: DYNAMIC_ROBOTS_TXT
           Value: !Ref DynamicRobotsTxt
+        - Name: CC_PORTAL_VERSION
+          Value: !Select [1, !Split [":", !Ref PortalDockerImage]] 
 
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
@@ -473,6 +475,8 @@ Resources:
           Value: !Ref GoogleClientSecret
         - Name: RESTART_TOGGLE
           Value: !Ref RestartToggle
+        - Name: CC_PORTAL_VERSION
+          Value: !Select [1, !Split [":", !Ref PortalDockerImage]]
 
   # Need ECS Service definition
   ReportTargetGroup:

@@ -311,6 +311,8 @@ Resources:
           Value: !Ref RestartToggle
         - Name: DYNAMIC_ROBOTS_TXT
           Value: !Ref DynamicRobotsTxt
+        - Name: CC_PORTAL_VERSION
+          Value: !Select [1, !Split [":", !Ref PortalDockerImage]]
 
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
