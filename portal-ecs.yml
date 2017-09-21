@@ -116,11 +116,12 @@ Parameters:
   JWTHMACSecret:
     Type: String
     Description: JWT HMAC Secret
-  PortalPagesLibraryURL:
+  PortalPagesLibraryVersion:
     Type: String
-    Description: location of the portal pages javascript and css that will be added to all
-      web pages of the portal. This URL should be versioned so there are no issues with
-      caching.
+    Description: the version or branch path to the portal pages javascript and css that
+      will be added to all web pages of the portal. This path will be added to URL should
+      be versioned so there are no issues with caching. For example 'version/v1.1.0' or
+      'branch/master'
   ExternalCSSURL:
     Type: String
     Description: location of an additional css file that will be added to every page
@@ -149,6 +150,17 @@ Parameters:
     AllowedValues:
     - true
     - false
+  OpenGraphTitle:
+    Type: String
+    Description: OpenGraph title property used for home page
+  OpenGraphDescription:
+    Type: String
+    Description: OpenGraph descriptio property used for home page and other pages without
+      their own Description
+  OpenGraphImageURL:
+    Type: String
+    Description: OpenGraph image property used for home page ad other pages without their
+      own description
 
 Resources:
   LoadBalancerStack:
@@ -307,7 +319,7 @@ Resources:
         - Name: JWT_HMAC_SECRET
           Value: !Ref JWTHMACSecret
         - Name: PORTAL_PAGES_LIBRARY_URL
-          Value: !Ref PortalPagesLibraryURL
+          Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
         - Name: EXTERNAL_CSS_URL
           Value: !Ref ExternalCSSURL
         - Name: ASN_API_KEY
@@ -323,7 +335,13 @@ Resources:
         - Name: DYNAMIC_ROBOTS_TXT
           Value: !Ref DynamicRobotsTxt
         - Name: CC_PORTAL_VERSION
-          Value: !Select [1, !Split [":", !Ref PortalDockerImage]] 
+          Value: !Select [1, !Split [":", !Ref PortalDockerImage]]
+        - Name: OG_TITLE
+          Value: !Ref OpenGraphTitle
+        - Name: OG_DESCRIPTION
+          Value: !Ref OpenGraphDescription
+        - Name: OG_IMAGE_URL
+          Value: !Ref OpenGraphImageURL
 
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
@@ -460,7 +478,7 @@ Resources:
         - Name: JWT_HMAC_SECRET
           Value: !Ref JWTHMACSecret
         - Name: PORTAL_PAGES_LIBRARY_URL
-          Value: !Ref PortalPagesLibraryURL
+          Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
         - Name: EXTERNAL_CSS_URL
           Value: !Ref ExternalCSSURL
         - Name: RESEARCHER_REPORT_ONLY
@@ -623,7 +641,7 @@ Resources:
         - Name: JWT_HMAC_SECRET
           Value: !Ref JWTHMACSecret
         - Name: PORTAL_PAGES_LIBRARY_URL
-          Value: !Ref PortalPagesLibraryURL
+          Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
         - Name: EXTERNAL_CSS_URL
           Value: !Ref ExternalCSSURL
         - Name: ASN_API_KEY
@@ -783,3 +801,4 @@ Metadata:
         default: "App Config"
       Parameters:
       - PortalDockerImage
+      - PortalPagesLibraryVersion
