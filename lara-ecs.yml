@@ -151,7 +151,7 @@ Resources:
     Properties:
       Role: ecsServiceRole
       TaskDefinition: !Ref AppTaskDefinition
-      DesiredCount: '1'
+      DesiredCount: !Ref MinNumLaraWebTasks
       LoadBalancers:
       - TargetGroupArn: !Ref AppTargetGroup
         ContainerPort: '80'
