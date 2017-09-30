@@ -15,10 +15,6 @@ Parameters:
     AllowedValues: [star.concord.org, star.portal.concord.org, star.staging.concord.org]
     Description: Two certificates are registered with AWS choose which one to use for the
       load balancer
-  DatabaseSecurityGroupId:
-    Type: AWS::EC2::SecurityGroup::Id
-    Description: Select security group of the RDS database. This security group will
-      be modified to allow access by the EC2 instances in this stack
   DomainName:
     Type: String
     Description: The DNS name that will be created or updated to point at the load
