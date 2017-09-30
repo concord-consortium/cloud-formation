@@ -162,6 +162,9 @@ Parameters:
     Description: OpenGraph image property used for home page ad other pages without their
       own description
 
+Conditions:
+  PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
+
 Resources:
   LoadBalancerStack:
     Type: AWS::CloudFormation::Stack
@@ -318,8 +321,11 @@ Resources:
           Value: !Sub "https://${ReportDomainName}"
         - Name: JWT_HMAC_SECRET
           Value: !Ref JWTHMACSecret
-        - Name: PORTAL_PAGES_LIBRARY_URL
-          Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
+        - !If
+          - PortalPagesLibraryDefined
+          - Name: PORTAL_PAGES_LIBRARY_URL
+            Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
+          - !Ref 'AWS::NoValue'
         - Name: EXTERNAL_CSS_URL
           Value: !Ref ExternalCSSURL
         - Name: ASN_API_KEY
@@ -477,8 +483,11 @@ Resources:
           Value: activity
         - Name: JWT_HMAC_SECRET
           Value: !Ref JWTHMACSecret
-        - Name: PORTAL_PAGES_LIBRARY_URL
-          Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
+        - !If
+          - PortalPagesLibraryDefined
+          - Name: PORTAL_PAGES_LIBRARY_URL
+            Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
+          - !Ref 'AWS::NoValue'
         - Name: EXTERNAL_CSS_URL
           Value: !Ref ExternalCSSURL
         - Name: RESEARCHER_REPORT_ONLY
@@ -640,8 +649,11 @@ Resources:
           Value: activity
         - Name: JWT_HMAC_SECRET
           Value: !Ref JWTHMACSecret
-        - Name: PORTAL_PAGES_LIBRARY_URL
-          Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
+        - !If
+          - PortalPagesLibraryDefined
+          - Name: PORTAL_PAGES_LIBRARY_URL
+            Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
+          - !Ref 'AWS::NoValue'
         - Name: EXTERNAL_CSS_URL
           Value: !Ref ExternalCSSURL
         - Name: ASN_API_KEY
