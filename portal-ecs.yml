@@ -753,7 +753,7 @@ Resources:
       # there should be very few long running connections to solr so it should be OK
       # to keep this value small
       - Key: deregistration_delay.timeout_seconds
-        Value: '20'
+        Value: '5'
       VpcId: vpc-9c9714f9
       Name: !Sub "${ShortName}Solr-${InternalLoadBalancerStack.Outputs.LoadBalancerEndingId}"
 
