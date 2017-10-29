@@ -173,7 +173,7 @@ Resources:
       Protocol: HTTP
       TargetGroupAttributes:
       - Key: deregistration_delay.timeout_seconds
-        Value: '300'
+        Value: '120'
       VpcId: vpc-9c9714f9
       # Use this name property to force the TargetGroup to be recreated whenever the load
       # balancer is recreated. Otherwise CloudFormation tries to add the TargetGroup
