@@ -324,7 +324,7 @@ Resources:
         - !If
           - PortalPagesLibraryDefined
           - Name: PORTAL_PAGES_LIBRARY_URL
-            Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
+            Value: !Sub 'https://portal-pages.concord.org/${PortalPagesLibraryVersion}/library'
           - !Ref 'AWS::NoValue'
         - Name: EXTERNAL_CSS_URL
           Value: !Ref ExternalCSSURL
@@ -486,7 +486,7 @@ Resources:
         - !If
           - PortalPagesLibraryDefined
           - Name: PORTAL_PAGES_LIBRARY_URL
-            Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
+            Value: !Sub 'https://portal-pages.concord.org/${PortalPagesLibraryVersion}/library'
           - !Ref 'AWS::NoValue'
         - Name: EXTERNAL_CSS_URL
           Value: !Ref ExternalCSSURL
@@ -652,7 +652,7 @@ Resources:
         - !If
           - PortalPagesLibraryDefined
           - Name: PORTAL_PAGES_LIBRARY_URL
-            Value: !Sub 'https://s3.amazonaws.com/models-resources/portal-pages/${PortalPagesLibraryVersion}/library'
+            Value: !Sub 'https://portal-pages.concord.org/${PortalPagesLibraryVersion}/library'
           - !Ref 'AWS::NoValue'
         - Name: EXTERNAL_CSS_URL
           Value: !Ref ExternalCSSURL
