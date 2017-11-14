@@ -227,14 +227,15 @@ Resources:
       ContainerDefinitions:
       - Name: App
         Image: !Ref PortalDockerImage
-        Cpu: "512"
+        Cpu: "128"
         PortMappings:
         - ContainerPort: '80'
         Command:
         - bash
         - '-c'
         - 'chmod a+x docker/prod/run.sh && docker/prod/run.sh'
-        Memory: "1200"
+        # These are just test servers they seem to only use about 512mb of memory
+        Memory: "700"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
