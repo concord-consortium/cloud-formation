@@ -162,6 +162,13 @@ Parameters:
     Description: OpenGraph image property used for home page ad other pages without their
       own description
 
+  RollbarAccessToken:
+    Type: String
+    Description: token for server side error messages sent to Rollbar
+  RollbarClientAccessToken:
+    Type: String
+    Description: token for client side error messages sent to Rollbar
+    
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
 
@@ -348,6 +355,10 @@ Resources:
           Value: !Ref OpenGraphDescription
         - Name: OG_IMAGE_URL
           Value: !Ref OpenGraphImageURL
+        - Name: ROLLBAR_ACCESS_TOKEN
+          Value: !Ref RollbarAccessToken
+        - Name: ROLLBAR_CLIENT_ACCESS_TOKEN
+          Value: !Ref RollbarClientAccessToken
 
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
@@ -500,6 +511,10 @@ Resources:
           Value: !Ref GoogleClientKey
         - Name: GOOGLE_CLIENT_SECRET
           Value: !Ref GoogleClientSecret
+        - Name: ROLLBAR_ACCESS_TOKEN
+          Value: !Ref RollbarAccessToken
+        - Name: ROLLBAR_CLIENT_ACCESS_TOKEN
+          Value: !Ref RollbarClientAccessToken
         - Name: RESTART_TOGGLE
           Value: !Ref RestartToggle
         - Name: CC_PORTAL_VERSION
@@ -664,6 +679,10 @@ Resources:
           Value: !Ref GoogleClientKey
         - Name: GOOGLE_CLIENT_SECRET
           Value: !Ref GoogleClientSecret
+        - Name: ROLLBAR_ACCESS_TOKEN
+          Value: !Ref RollbarAccessToken
+        - Name: ROLLBAR_CLIENT_ACCESS_TOKEN
+          Value: !Ref RollbarClientAccessToken
         - Name: RESTART_TOGGLE
           Value: !Ref RestartToggle
 
