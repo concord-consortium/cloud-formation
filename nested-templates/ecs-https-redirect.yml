@@ -36,10 +36,15 @@ Resources:
       ContainerDefinitions:
       - Name: RedirectContainer
         Image: 'jamessharp/docker-nginx-https-redirect'
-        Cpu: "256"
+        # This memory value is based on watching this container run for a while
+        # over the course of multiple weeks this container never used more than 4 cpu
+        # units
+        Cpu: "32"
         PortMappings:
         - ContainerPort: '80'
-        Memory: "256"
+        # This memory value is based on watching this container run for a while
+        # over the course of multiple weeks this container never used more than 1 mb
+        Memory: "16"
         Essential: "true"
 
   RedirectService:
