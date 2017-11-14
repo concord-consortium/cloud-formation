@@ -248,14 +248,26 @@ Resources:
       ContainerDefinitions:
       - Name: App
         Image: !Ref PortalDockerImage
-        Cpu: "512"
+        # Based on usage over 4 weeks there are multiple spikes up to 1500 CPU units
+        # Changing this value requires consideration of both the cluster autoscaler and
+        # the service autoscaler. The cluster is autoscaled based on CPU reservation
+        # so a larger value here wil cause more EC2 instances to be added to the cluster
+        # The service autoscaler is based on the percentage of CPU used out of this reserved
+        # amount. So to keep the same kind of service scaling pattern the service autoscaler
+        # will need to be adjusted when this number is changed.
+        Cpu: "1024"
         PortMappings:
         - ContainerPort: '80'
         Command:
         - bash
         - '-c'
         - 'chmod a+x docker/prod/run.sh && docker/prod/run.sh'
-        Memory: "1200"
+        # The learn portal was often bumping into the reserved memory amount of 1200mb.
+        # On 2017-11-14 I'm doing an increase to 1400mb.  At the same time I increased
+        # the CPU reservation. This is necessary because the cluster is scaled by CPU
+        # reservation only so if the Memory reservation is too high then the cluster won't
+        # be scaled and new service won't be able to be started
+        Memory: "1400"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
@@ -373,10 +385,14 @@ Resources:
         # we are using a longer alarm evaluation period to deal with the cooldown
         # period. There might be a better way to handle this.
         ScaleUpCooldown: '0'
-        ScaleUpStepBoundary: '25'
+        # this was adjusted on 2017-11-14 to match the change made to the CPU reservation
+        # value for the App service
+        ScaleUpStepBoundary: '13'
         ScaleUpStepAdjustment1: '100'
         ScaleUpStepAdjustment2: '200'
-        ScaleUpAlarmThreshold: '75'
+        # this was adjusted on 2017-11-14 to match the change made to the CPU reservation
+        # value for the App service
+        ScaleUpAlarmThreshold: '35'
         # this 2 minute evaluation period helps with an initial spike
         # when a new container is started, and it also helps the CPUUtilization start
         # to reflect the change in capacity. This is also the point of the Cooldown setting
@@ -386,7 +402,9 @@ Resources:
         ScaleUpAlarmPeriod: '60'
         ScaleDownCooldown: '300'
         ScaleDownStepAdjustment: '-1'
-        ScaleDownAlarmThreshold: '35'
+        # this was adjusted on 2017-11-14 to match the change made to the CPU reservation
+        # value for the App service
+        ScaleDownAlarmThreshold: '18'
         # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
         # this approach helps offset a running average affecting the responsiveness.
         # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
