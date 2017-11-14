@@ -819,13 +819,20 @@ Resources:
       ContainerDefinitions:
       - Name: Solr
         Image: concordconsortium/docker-solr-portal:v1.0.0
-        Cpu: "512"
+        # based on reviewing the data the solr service over 4 weeks
+        # normally it requries very little CPU only about 4 units
+        # during a reindex though it can spike up to 512 units ECS
+        # will allow it go way over the value of 128 here so this seems
+        # like a good compromise
+        Cpu: "128"
         PortMappings:
         - ContainerPort: '8983'
         Command:
         - bash
         - /opt/solr/rigse-solr-docker/start-solr.sh
-        Memory: "900"
+        # looking at data over 4 weeks. It seems that internal Solr is limiting its
+        # memory usage to 475mb. I'll give it a little more just incase it needs it.
+        Memory: "600"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
