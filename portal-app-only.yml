@@ -44,12 +44,6 @@ Parameters:
   CloudWatchLogGroup:
     Type: String
     Description: logging group in cloud watch where the aws logs will be sent
-  MaxNumWebTasks:
-    Type: String
-    Description: maxium number of Portal Web tasks the autoscaler will spin up
-  MinNumWebTasks:
-    Type: String
-    Description: minimum number of Portal Web tasks the autoscaler will spin up
   PortalDockerImage:
     Type: String
     Description: docker image to use for the web container and worker container
@@ -178,7 +172,7 @@ Resources:
     Properties:
       Role: ecsServiceRole
       TaskDefinition: !Ref AppTaskDefinition
-      DesiredCount: !Ref MinNumWebTasks
+      DesiredCount: '1'
       LoadBalancers:
       - TargetGroupArn: !Ref AppTargetGroup
         ContainerPort: '80'
@@ -333,41 +327,6 @@ Resources:
           Value: !Ref OpenGraphDescription
         - Name: OG_IMAGE_URL
           Value: !Ref OpenGraphImageURL
-
-  AppScalingStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      # Change to location of scaling Template
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
-      Parameters:
-        ServiceName: !GetAtt AppService.Name
-        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
-        MaxNumTasks: !Ref MaxNumWebTasks
-        MinNumTasks: !Ref MinNumWebTasks
-        # we are using a longer alarm evaluation period to deal with the cooldown
-        # period. There might be a better way to handle this.
-        ScaleUpCooldown: '0'
-        ScaleUpStepBoundary: '25'
-        ScaleUpStepAdjustment1: '100'
-        ScaleUpStepAdjustment2: '200'
-        ScaleUpAlarmThreshold: '75'
-        # this 2 minute evaluation period helps with an initial spike
-        # when a new container is started, and it also helps the CPUUtilization start
-        # to reflect the change in capacity. This is also the point of the Cooldown setting
-        # but in that case I think it prevents more scaling up if we aren't able to keep up
-        # with demand.
-        ScaleUpAlarmEvaluationPeriods: '2'
-        ScaleUpAlarmPeriod: '60'
-        ScaleDownCooldown: '300'
-        ScaleDownStepAdjustment: '-1'
-        ScaleDownAlarmThreshold: '35'
-        # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
-        # this approach helps offset a running average affecting the responsiveness.
-        # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
-        # could be below 35%. However with 5 evaluation periods, then the 49% will cancel
-        # the alarm.
-        ScaleDownAlarmEvaluationPeriods: '5'
-        ScaleDownAlarmPeriod: '60'
 
   LogGroup:
     Type: AWS::Logs::LogGroup
