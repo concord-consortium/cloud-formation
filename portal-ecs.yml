@@ -607,11 +607,18 @@ Resources:
       ContainerDefinitions:
       - Name: Worker
         Image: !Ref PortalDockerImage
-        Cpu: "512"
+        # Reviewing data over 4 weeks of usage the workers had several spikes up to
+        # 768 CPU and one spike up to 1024. Since we are running on CPU rich Servers
+        # it is safe to reserve as much as the spikes
+        Cpu: "1024"
         Command:
         - script/delayed_job
         - run
-        Memory: "900"
+        # Reviewing data over 4 weeks of usage the workers never used more than 270mb
+        # of memory. That number is an average of the workers in each service. So
+        # individual workers might have spiked higher. This number of 600 provides
+        # quite a lot of padding
+        Memory: "600"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
