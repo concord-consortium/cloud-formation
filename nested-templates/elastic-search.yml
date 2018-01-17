@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Elastic Search domain with security group
+Parameters:
+  ClusterSecurityGroupId:
+    Type: String
+    Default: sg-cb6a8ab4
+    Description: |
+      the security group id of the cluster, this security group will be allowed to access
+      the elastic search domain
+
+#####
+# Note this requires running
+#   aws iam create-service-linked-role --aws-service-name es.amazonaws.com
+# once for your account if you have not use ES with a VPC from the GUI Console
+#####
+
+Resources:
+  ElasticsearchDomain:
+    Type: "AWS::Elasticsearch::Domain"
+    Properties:
+      ElasticsearchVersion: "5.1"
+      ElasticsearchClusterConfig:
+        DedicatedMasterEnabled: "false"
+        InstanceCount: "1"
+        ZoneAwarenessEnabled: "false"
+        InstanceType: "m4.large.elasticsearch"
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 10
+        VolumeType: "gp2"
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: "0"
+      # allow all because we are counting on the VPC and security groups
+      # to restrict access, we can probably tighten this up once it is working
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: 'es:*'
+            Resource: '*'
+      VPCOptions:
+        SubnetIds:
+          - subnet-7fb16326
+        SecurityGroupIds:
+          - !Ref ElasticSearchSecurityGroup
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: "true"
+
+  ElasticSearchSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Elastic Search endpoint security group'
+      VpcId: 'vpc-9c9714f9'
+      SecurityGroupIngress:
+        - FromPort: '443'
+          IpProtocol: tcp
+          ToPort: '443'
+          SourceSecurityGroupId: !Ref ClusterSecurityGroupId
+
+Outputs:
+  DomainArn:
+    Value: !GetAtt ElasticsearchDomain.DomainArn
+  DomainEndpoint:
+    Value: !GetAtt ElasticsearchDomain.DomainEndpoint
