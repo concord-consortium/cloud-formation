@@ -168,7 +168,7 @@ Parameters:
   RollbarClientAccessToken:
     Type: String
     Description: token for client side error messages sent to Rollbar
-    
+
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
 
@@ -240,6 +240,13 @@ Resources:
         TargetGroupName: !Sub '${ShortName}Redir-${LoadBalancerStack.Outputs.LoadBalancerEndingId}'
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
         LoadBalancerArn: !GetAtt LoadBalancerStack.Outputs.LoadBalancer
+
+  ElasticSearchStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/elastic-search.yml
+      Parameters:
+        ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
   AppTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -427,6 +434,59 @@ Resources:
       ToPort: '3306'
       SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
+  LogStashExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ "ecs-tasks.amazonaws.com" ]
+          Action: [ "sts:AssumeRole" ]
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonESFullAccess
+      - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  LogStashTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${AWS::StackName}-LogStash"
+      # specifiy a execution role that provides access to elastic search
+      ExecutionRoleArn: !GetAtt [LogStashExecutionRole, Arn]
+      ContainerDefinitions:
+      - Name: LogStash
+        Image: concordconsortium/rigse-logstash:logstash-v1.0.1
+        Cpu: "128"
+        Memory: "600"
+        Essential: "true"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-region: us-east-1
+            awslogs-group: !Ref CloudWatchLogGroup
+            awslogs-stream-prefix: portal
+        Environment:
+        - Name: DB_NAME
+          Value: portal
+        - Name: DB_HOST
+          Value: !Ref DbHost
+        - Name: DB_PASSWORD
+          Value: !Ref DbPassword
+        - Name: DB_USER
+          Value: !Ref DbUserName
+        - Name: ES_HOST
+          Value: !GetAtt ElasticSearchStack.Outputs.DomainEndpoint
+        - Name: AWS_REGION
+          Value: us-east-1
+
+  LogStashService:
+    Type: AWS::ECS::Service
+    Properties:
+      TaskDefinition: !Ref LogStashTaskDefinition
+      DesiredCount: '1'
+      Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
+
   ReportTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -537,6 +597,8 @@ Resources:
           Value: !Ref RestartToggle
         - Name: CC_PORTAL_VERSION
           Value: !Select [1, !Split [":", !Ref PortalDockerImage]]
+        - Name: ELASTICSEARCH_URL
+          Value: !Sub 'https://${ElasticSearchStack.Outputs.DomainEndpoint}'
 
   # Need ECS Service definition
   ReportTargetGroup:
