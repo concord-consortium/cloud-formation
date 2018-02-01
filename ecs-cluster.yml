@@ -47,6 +47,10 @@ Parameters:
   NewRelicLicenceKey:
     Type: String
     Description: Licence key to enable new relic server monitoring
+  IAMGroupsForSSH:
+    Type: String
+    Description: Comma seperated list of IAM Groups. Users in these groups that have
+      a ssh public key set in IAM will be able to ssh into the ec2 instances in the cluster
 
 Resources:
   EcsSecurityGroup:
@@ -65,6 +69,49 @@ Resources:
       - Key: Environment
         Value: !Ref 'Environment'
 
+  EcsInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "ec2.amazonaws.com"
+          Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+      - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role'
+
+  # this was taken from https://github.com/concord-consortium/aws-ec2-ssh/blob/master/showcase.yaml
+  SSHLocalRolePolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: iam
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - 'iam:ListUsers'
+          - 'iam:GetGroup'
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - 'iam:ListSSHPublicKeys'
+          - 'iam:GetSSHPublicKey'
+          Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:user/*'
+        - Effect: Allow
+          Action: 'ec2:DescribeTags'
+          Resource: '*'
+      Roles:
+        - !Ref EcsInstanceRole
+
+  EcsInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+      - !Ref EcsInstanceRole
+
   EcsInstanceLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -72,7 +119,7 @@ Resources:
       InstanceType: !Ref "EcsInstanceType"
       AssociatePublicIpAddress: true
       # TODO need to look this up
-      IamInstanceProfile: ecsInstanceRole
+      IamInstanceProfile: !Ref EcsInstanceProfile
       KeyName: !Ref "KeyName"
       SecurityGroups: [ !Ref "EcsSecurityGroup" ]
       UserData:
@@ -84,13 +131,19 @@ Resources:
           #!/bin/bash
           echo ECS_CLUSTER=${EcsClusterName} >> /etc/ecs/ecs.config
           rpm -Uvh https://yum.newrelic.com/pub/newrelic/el5/x86_64/newrelic-repo-5-3.noarch.rpm
-          yum install -y aws-cfn-bootstrap newrelic-sysmond
+          yum install -y aws-cfn-bootstrap newrelic-sysmond git aws-cli
           nrsysmond-config --set license_key=${NewRelicLicenceKey}
           service newrelic-sysmond start
           groupadd -r docker
           usermod -a -G docker newrelic
           service docker restart
           service newrelic-sysmond restart
+          # Setup iam ssh access
+          tmpdir=$(mktemp -d)
+          cd "$tmpdir"
+          git clone https://github.com/concord-consortium/aws-ec2-ssh
+          cd aws-ec2-ssh
+          sudo ./install.sh -i "${IAMGroupsForSSH}" -s "${IAMGroupsForSSH}"
           # notify cloudformation
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EcsInstanceAutoScaleGroup --region ${AWS::Region}
 
