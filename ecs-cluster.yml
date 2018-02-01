@@ -51,6 +51,11 @@ Parameters:
     Type: String
     Description: Comma seperated list of IAM Groups. Users in these groups that have
       a ssh public key set in IAM will be able to ssh into the ec2 instances in the cluster
+  SSHScriptVersion:
+    Type: String
+    Description: tag or branch of https://github.com/concord-consortium/aws-ec2-ssh
+      which handles the accessing public keys for ssh users
+    Default: v1.3.0-cc.1
 
 Resources:
   EcsSecurityGroup:
@@ -141,7 +146,7 @@ Resources:
           # Setup iam ssh access
           tmpdir=$(mktemp -d)
           cd "$tmpdir"
-          git clone https://github.com/concord-consortium/aws-ec2-ssh
+          git clone --branch ${SSHScriptVersion} --depth 1 https://github.com/concord-consortium/aws-ec2-ssh
           cd aws-ec2-ssh
           sudo ./install.sh -i "${IAMGroupsForSSH}" -s "${IAMGroupsForSSH}"
           # notify cloudformation
