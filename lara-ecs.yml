@@ -406,6 +406,8 @@ Resources:
           Value: !Ref LabBookProviderURL
         - Name: MODEL_JSON_LIST_URL
           Value: !Ref ModelJsonListURL
+        - Name: LARA_VERSION
+          Value: !Select [1, !Split [":", !Ref LaraDockerImage]]
 
   LogGroup:
     Type: AWS::Logs::LogGroup
