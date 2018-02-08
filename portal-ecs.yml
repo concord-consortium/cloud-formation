@@ -456,9 +456,9 @@ Resources:
       ExecutionRoleArn: !GetAtt [LogStashExecutionRole, Arn]
       ContainerDefinitions:
       - Name: LogStash
-        Image: concordconsortium/rigse-logstash:logstash-v1.0.1
-        Cpu: "128"
-        Memory: "600"
+        Image: concordconsortium/rigse-logstash:logstash-v1.1.0
+        Cpu: "256"
+        Memory: "2500"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
