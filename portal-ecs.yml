@@ -456,8 +456,9 @@ Resources:
       ExecutionRoleArn: !GetAtt [LogStashExecutionRole, Arn]
       ContainerDefinitions:
       - Name: LogStash
-        Image: concordconsortium/rigse-logstash:logstash-v1.1.0
+        Image: concordconsortium/rigse-logstash:logstash-v1.1.3
         Cpu: "256"
+        # if you adjust the memory you should also adjust the -Xmx setting below
         Memory: "2500"
         Essential: "true"
         LogConfiguration:
@@ -479,6 +480,10 @@ Resources:
           Value: !GetAtt ElasticSearchStack.Outputs.DomainEndpoint
         - Name: AWS_REGION
           Value: us-east-1
+        - Name: LOGSTASH_SCHEDULE
+          Value: "*/30 * * * *"
+        - Name: LS_JAVA_OPTS
+          Value: "-Xmx2g"
 
   LogStashService:
     Type: AWS::ECS::Service
