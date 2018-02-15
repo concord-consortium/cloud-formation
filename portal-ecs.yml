@@ -83,10 +83,10 @@ Parameters:
   PortalFeatures:
     Type: String
     Description: list of rails engines to load to support exstra features
-  ReportViewURL:
+  PortalReportVersion:
     Type: String
-    Description: URL of the portal report it must have a domain of either
-      portal-report.concord.org or concord-consortium.github.io
+    Description: version of portal report used to construct the REPORT_VIEW_URL using the
+      pattern https://portal-report.concord.org/[PortalReportVersion]/ For example 'version/v1.0.0'
   S3AccessKeyId:
     Type: String
   S3SecreateAccessKey:
@@ -314,7 +314,7 @@ Resources:
         - Name: REPORT_DOMAINS
           Value: portal-report.concord.org concord-consortium.github.io
         - Name: REPORT_VIEW_URL
-          Value: !Ref ReportViewURL
+          Value: !Sub 'https://portal-report.concord.org/${PortalReportVersion}/'
         - Name: S3_ACCESS_KEY_ID
           Value: !Ref S3AccessKeyId
         - Name: S3_BUCKET
@@ -546,7 +546,7 @@ Resources:
         - Name: REPORT_DOMAINS
           Value: portal-report.concord.org concord-consortium.github.io
         - Name: REPORT_VIEW_URL
-          Value: !Ref ReportViewURL
+          Value: !Sub 'https://portal-report.concord.org/${PortalReportVersion}/'
         - Name: S3_ACCESS_KEY_ID
           Value: !Ref S3AccessKeyId
         - Name: S3_BUCKET
@@ -725,7 +725,7 @@ Resources:
         - Name: REPORT_DOMAINS
           Value: portal-report.concord.org concord-consortium.github.io
         - Name: REPORT_VIEW_URL
-          Value: !Ref ReportViewURL
+          Value: !Sub 'https://portal-report.concord.org/${PortalReportVersion}/'
         - Name: S3_ACCESS_KEY_ID
           Value: !Ref S3AccessKeyId
         - Name: S3_BUCKET
@@ -932,3 +932,4 @@ Metadata:
       Parameters:
       - PortalDockerImage
       - PortalPagesLibraryVersion
+      - PortalReportVersion
