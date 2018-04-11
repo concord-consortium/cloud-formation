@@ -68,10 +68,10 @@ Parameters:
   PortalFeatures:
     Type: String
     Description: list of rails engines to load to support exstra features
-  ReportViewURL:
+  PortalReportVersion:
     Type: String
-    Description: URL of the portal report it must have a domain of either
-      portal-report.concord.org or concord-consortium.github.io
+    Description: version of portal report used to construct the REPORT_VIEW_URL using the
+      pattern https://portal-report.concord.org/[PortalReportVersion]/ For example 'version/v1.0.0'
   S3AccessKeyId:
     Type: String
   S3SecreateAccessKey:
@@ -117,6 +117,9 @@ Parameters:
   GoogleAnalyticsAccount:
     Type: String
     Description: key for Google Analytics
+  GoogleOptimizerAccount:
+    Type: String
+    Description: key for Google Optimize
   GoogleClientKey:
     Type: String
     Description: key for Google SSO OAuth2
@@ -269,7 +272,7 @@ Resources:
         - Name: REPORT_DOMAINS
           Value: portal-report.concord.org concord-consortium.github.io
         - Name: REPORT_VIEW_URL
-          Value: !Ref ReportViewURL
+          Value: !Sub 'https://portal-report.concord.org/${PortalReportVersion}/'
         - Name: S3_ACCESS_KEY_ID
           Value: !Ref S3AccessKeyId
         - Name: S3_BUCKET
@@ -311,6 +314,8 @@ Resources:
           Value: !Ref ASNAPIKey
         - Name: GOOGLE_ANALYTICS_ACCOUNT
           Value: !Ref GoogleAnalyticsAccount
+        - Name: GOOGLE_OPTIMIZER_ACCOUNT
+          Value: !Ref GoogleOptimizerAccount
         - Name: GOOGLE_CLIENT_KEY
           Value: !Ref GoogleClientKey
         - Name: GOOGLE_CLIENT_SECRET
@@ -320,7 +325,11 @@ Resources:
         - Name: DYNAMIC_ROBOTS_TXT
           Value: !Ref DynamicRobotsTxt
         - Name: CC_PORTAL_VERSION
-          Value: !Select [1, !Split [":", !Ref PortalDockerImage]]
+          Value: !Join
+          - ', '
+          - - !Join ['-', ['portal', !Select [1, !Split [':', !Ref PortalDockerImage]]]]
+            - !Join ['-', ['pages', !Select [1, !Split ['/', !Ref PortalPagesLibraryVersion]]]]
+            - !Join ['-', ['report', !Select [1, !Split ['/', !Ref PortalReportVersion]]]]
         - Name: OG_TITLE
           Value: !Ref OpenGraphTitle
         - Name: OG_DESCRIPTION
@@ -349,3 +358,5 @@ Metadata:
         default: "App Config"
       Parameters:
       - PortalDockerImage
+      - PortalPagesLibraryVersion
+      - PortalReportVersion
