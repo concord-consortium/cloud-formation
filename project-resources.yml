@@ -1,3 +1,5 @@
+# TODO: this does not enable CORS support
+# that should either be an option, or just done all of the time
 AWSTemplateFormatVersion: '2010-09-09'
 Description: portal ecs stack
 Parameters:
