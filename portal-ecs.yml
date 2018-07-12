@@ -172,6 +172,13 @@ Parameters:
     Type: String
     Description: token for client side error messages sent to Rollbar
 
+  EnewsAPIKey:
+    Type: String
+    Description: mailchimp API key to register for enews
+  EnewsAPIListID:
+    Type: String
+    Description: mailchimp list id for enews
+
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
 
@@ -387,6 +394,12 @@ Resources:
           Value: !Ref RollbarAccessToken
         - Name: ROLLBAR_CLIENT_ACCESS_TOKEN
           Value: !Ref RollbarClientAccessToken
+        - Name: ENEWS_API_KEY
+          Value: !Ref EnewsAPIKey
+        - Name: ENEWS_API_LISTID
+          Value: !Ref EnewsAPIListID
+        - Name: ENEWS_API_URI
+          Value: 'https://us2.api.mailchimp.com/3.0/lists'
 
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
@@ -794,6 +807,12 @@ Resources:
           Value: !Ref RollbarClientAccessToken
         - Name: RESTART_TOGGLE
           Value: !Ref RestartToggle
+        - Name: ENEWS_API_KEY
+          Value: !Ref EnewsAPIKey
+        - Name: ENEWS_API_LISTID
+          Value: !Ref EnewsAPIListID
+        - Name: ENEWS_API_URI
+          Value: 'https://us2.api.mailchimp.com/3.0/lists'
 
 
   WorkerService:
