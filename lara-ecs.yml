@@ -32,9 +32,9 @@ Parameters:
     Description: The LARA Oauth2 code requires two authentication providers
       in some places of the code, so if you are only going to configure one then set
       this to true
-  ITSIDemoSecret:
+  ITSITestSecret:
     Type: String
-    Description: The OAuth2 key to authenticate via itsi-demo. If this is not set, the portal
+    Description: The OAuth2 key to authenticate via itsi-test. If this is not set, the portal
       will not be configured.
   LearnStemSecret:
     Type: String
@@ -104,7 +104,7 @@ Parameters:
 
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
-  AddITSIDemo: !Not [!Equals [!Ref ITSIDemoSecret, ""]]
+  AddITSITest: !Not [!Equals [!Ref ITSITestSecret, ""]]
   AddLearnStem: !Not [!Equals [!Ref LearnStemSecret, ""]]
   AddLearnStaging: !Not [!Equals [!Ref LearnStagingSecret, ""]]
   AddAssessmentPortal: !Not [!Equals [!Ref AssessmentPortalSecret, ""]]
@@ -208,7 +208,7 @@ Resources:
           - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStem, LEARN_STEM_STAGING, !Ref 'AWS::NoValue']
-            - !If [ AddITSIDemo, ITSI_DEMO, !Ref 'AWS::NoValue']
+            - !If [ AddITSITest, ITSI_TEST, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
             - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
             - !If [ AddITSIPortal, ITSI, !Ref 'AWS::NoValue']
@@ -236,21 +236,21 @@ Resources:
             Value: http://has.staging.concord.org/
           - !Ref 'AWS::NoValue'
 
-        # itsi demo configuration
+        # itsi test configuration
         - !If
-          - AddITSIDemo
-          - Name: CONCORD_ITSI_DEMO_CLIENT_ID
-            Value: itsi-demo
+          - AddITSITest
+          - Name: CONCORD_ITSI_TEST_CLIENT_ID
+            Value: authoring-staging
           - !Ref 'AWS::NoValue'
         - !If
-          - AddITSIDemo
-          - Name: CONCORD_ITSI_DEMO_CLIENT_SECRET
-            Value: !Ref ITSIDemoSecret
+          - AddITSITest
+          - Name: CONCORD_ITSI_TEST_CLIENT_SECRET
+            Value: !Ref ITSITestSecret
           - !Ref 'AWS::NoValue'
         - !If
-          - AddITSIDemo
-          - Name: CONCORD_ITSI_DEMO_URL
-            Value: http://itsi.portal-demo.concord.org/
+          - AddITSITest
+          - Name: CONCORD_ITSI_TEST_URL
+            Value: http://itsi-test.portal.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn stem staging configuration
@@ -484,7 +484,7 @@ Resources:
           - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStem, LEARN_STEM_STAGING, !Ref 'AWS::NoValue']
-            - !If [ AddITSIDemo, ITSI_DEMO, !Ref 'AWS::NoValue']
+            - !If [ AddITSITest, ITSI_TEST, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
             - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
             - !If [ AddITSIPortal, ITSI, !Ref 'AWS::NoValue']
@@ -512,21 +512,21 @@ Resources:
             Value: http://has.staging.concord.org/
           - !Ref 'AWS::NoValue'
 
-        # itsi demo configuration
+        # itsi test configuration
         - !If
-          - AddITSIDemo
-          - Name: CONCORD_ITSI_DEMO_CLIENT_ID
-            Value: itsi-demo
+          - AddITSITest
+          - Name: CONCORD_ITSI_TEST_CLIENT_ID
+            Value: authoring-staging
           - !Ref 'AWS::NoValue'
         - !If
-          - AddITSIDemo
-          - Name: CONCORD_ITSI_DEMO_CLIENT_SECRET
-            Value: !Ref ITSIDemoSecret
+          - AddITSITest
+          - Name: CONCORD_ITSI_TEST_CLIENT_SECRET
+            Value: !Ref ITSITestSecret
           - !Ref 'AWS::NoValue'
         - !If
-          - AddITSIDemo
-          - Name: CONCORD_ITSI_DEMO_URL
-            Value: http://itsi.portal-demo.concord.org/
+          - AddITSITest
+          - Name: CONCORD_ITSI_TEST_URL
+            Value: http://itsi-test.portal.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn docker staging configuration
@@ -742,7 +742,7 @@ Metadata:
       - AddFakeAuthProvider
       - AssessmentPortalSecret
       - HASPortalSecret
-      - ITSIDemoSecret
+      - ITSITestSecret
       - ITSIPortalSecret
       - LearnStemSecret
       - LearnPortalSecret
