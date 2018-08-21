@@ -250,7 +250,7 @@ Resources:
         - !If
           - AddITSITest
           - Name: CONCORD_ITSI_TEST_URL
-            Value: http://itsi-test.portal.concord.org/
+            Value: https://itsi-test.portal.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn stem staging configuration
