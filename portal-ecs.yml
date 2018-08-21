@@ -382,7 +382,10 @@ Resources:
           Value: !Join
           - ', '
           - - !Join ['-', ['portal', !Select [1, !Split [':', !Ref PortalDockerImage]]]]
-            - !Join ['-', ['pages', !Select [1, !Split ['/', !Ref PortalPagesLibraryVersion]]]]
+            - !If
+              - PortalPagesLibraryDefined
+              - !Join ['-', ['pages', !Select [1, !Split ['/', !Ref PortalPagesLibraryVersion]]]]
+              - !Ref 'AWS::NoValue'
             - !Join ['-', ['report', !Select [1, !Split ['/', !Ref PortalReportVersion]]]]
         - Name: OG_TITLE
           Value: !Ref OpenGraphTitle
@@ -628,7 +631,10 @@ Resources:
           Value: !Join
           - ', '
           - - !Join ['-', ['portal', !Select [1, !Split [':', !Ref PortalDockerImage]]]]
-            - !Join ['-', ['pages', !Select [1, !Split ['/', !Ref PortalPagesLibraryVersion]]]]
+            - !If
+              - PortalPagesLibraryDefined
+              - !Join ['-', ['pages', !Select [1, !Split ['/', !Ref PortalPagesLibraryVersion]]]]
+              - !Ref 'AWS::NoValue'
             - !Join ['-', ['report', !Select [1, !Split ['/', !Ref PortalReportVersion]]]]
         - Name: ELASTICSEARCH_URL
           Value: !Sub 'https://${ElasticSearchStack.Outputs.DomainEndpoint}'
