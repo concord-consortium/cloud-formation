@@ -135,6 +135,8 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           echo ECS_CLUSTER=${EcsClusterName} >> /etc/ecs/ecs.config
+          echo ECS_ENGINE_AUTH_TYPE=dockercfg >> /etc/ecs/ecs.config
+          echo ECS_ENGINE_AUTH_DATA='${PortalDockerAuthData}' >> /etc/ecs/ecs.config
           rpm -Uvh https://yum.newrelic.com/pub/newrelic/el5/x86_64/newrelic-repo-5-3.noarch.rpm
           yum install -y aws-cfn-bootstrap newrelic-sysmond git aws-cli
           nrsysmond-config --set license_key=${NewRelicLicenceKey}
