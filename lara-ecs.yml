@@ -32,6 +32,11 @@ Parameters:
     Description: The LARA Oauth2 code requires two authentication providers
       in some places of the code, so if you are only going to configure one then set
       this to true
+  PortalClientID:
+    Type: String
+    Default: authoring
+    Description: Client ID used with OAuth2 connection to the portal. This is used
+      globably for all of the Portals configured for this LARA instance.
   ITSITestSecret:
     Type: String
     Description: The OAuth2 key to authenticate via itsi-test. If this is not set, the portal
@@ -240,7 +245,7 @@ Resources:
         - !If
           - AddITSITest
           - Name: CONCORD_ITSI_TEST_CLIENT_ID
-            Value: authoring-staging
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddITSITest
@@ -257,7 +262,7 @@ Resources:
         - !If
           - AddLearnStem
           - Name: CONCORD_LEARN_STEM_STAGING_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddLearnStem
@@ -274,7 +279,7 @@ Resources:
         - !If
           - AddLearnStaging
           - Name: CONCORD_LEARN_STAGING_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddLearnStaging
@@ -291,7 +296,7 @@ Resources:
         - !If
           - AddAssessmentPortal
           - Name: CONCORD_ASSESSMENT_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddAssessmentPortal
@@ -308,7 +313,7 @@ Resources:
         - !If
           - AddHASPortal
           - Name: CONCORD_HAS_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddHASPortal
@@ -330,7 +335,7 @@ Resources:
         - !If
           - AddITSIPortal
           - Name: CONCORD_ITSI_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddITSIPortal
@@ -352,7 +357,7 @@ Resources:
         - !If
           - AddLearnPortal
           - Name: CONCORD_LEARN_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddLearnPortal
@@ -516,7 +521,7 @@ Resources:
         - !If
           - AddITSITest
           - Name: CONCORD_ITSI_TEST_CLIENT_ID
-            Value: authoring-staging
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddITSITest
@@ -526,14 +531,14 @@ Resources:
         - !If
           - AddITSITest
           - Name: CONCORD_ITSI_TEST_URL
-            Value: http://itsi-test.portal.concord.org/
+            Value: https://itsi-test.portal.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn docker staging configuration
         - !If
           - AddLearnStem
           - Name: CONCORD_LEARN_STEM_STAGING_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddLearnStem
@@ -550,7 +555,7 @@ Resources:
         - !If
           - AddLearnStaging
           - Name: CONCORD_LEARN_STAGING_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddLearnStaging
@@ -567,7 +572,7 @@ Resources:
         - !If
           - AddAssessmentPortal
           - Name: CONCORD_ASSESSMENT_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddAssessmentPortal
@@ -584,7 +589,7 @@ Resources:
         - !If
           - AddHASPortal
           - Name: CONCORD_HAS_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddHASPortal
@@ -606,7 +611,7 @@ Resources:
         - !If
           - AddITSIPortal
           - Name: CONCORD_ITSI_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddITSIPortal
@@ -628,7 +633,7 @@ Resources:
         - !If
           - AddLearnPortal
           - Name: CONCORD_LEARN_CLIENT_ID
-            Value: authoring
+            Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
           - AddLearnPortal
@@ -740,6 +745,7 @@ Metadata:
         default: "Portals"
       Parameters:
       - AddFakeAuthProvider
+      - PortalClientID
       - AssessmentPortalSecret
       - HASPortalSecret
       - ITSITestSecret
