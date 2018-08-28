@@ -59,7 +59,7 @@ Parameters:
   PortalDockerAuthData:
     Type: String
     Description: 'a json object with the configuration for docker hub. Something like :
-      {"https://index.docker.io/v1/":{"auth":"[password]","email":"email@example.com"}}'
+      {"https://index.docker.io/v1/":{"username":"[username]", "password":"[password]","email":"email@example.com"}}'
 
 Resources:
   EcsSecurityGroup:
@@ -139,7 +139,7 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           echo ECS_CLUSTER=${EcsClusterName} >> /etc/ecs/ecs.config
-          echo ECS_ENGINE_AUTH_TYPE=dockercfg >> /etc/ecs/ecs.config
+          echo ECS_ENGINE_AUTH_TYPE=docker >> /etc/ecs/ecs.config
           echo ECS_ENGINE_AUTH_DATA='${PortalDockerAuthData}' >> /etc/ecs/ecs.config
           rpm -Uvh https://yum.newrelic.com/pub/newrelic/el5/x86_64/newrelic-repo-5-3.noarch.rpm
           yum install -y aws-cfn-bootstrap newrelic-sysmond git aws-cli
