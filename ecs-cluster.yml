@@ -56,6 +56,10 @@ Parameters:
     Description: tag or branch of https://github.com/concord-consortium/aws-ec2-ssh
       which handles the accessing public keys for ssh users
     Default: v1.3.0-cc.1
+  PortalDockerAuthData:
+    Type: String
+    Description: 'a json object with the configuration for docker hub. Something like :
+      {"https://index.docker.io/v1/":{"username":"[username]", "password":"[password]","email":"email@example.com"}}'
 
 Resources:
   EcsSecurityGroup:
@@ -135,6 +139,8 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           echo ECS_CLUSTER=${EcsClusterName} >> /etc/ecs/ecs.config
+          echo ECS_ENGINE_AUTH_TYPE=docker >> /etc/ecs/ecs.config
+          echo ECS_ENGINE_AUTH_DATA='${PortalDockerAuthData}' >> /etc/ecs/ecs.config
           rpm -Uvh https://yum.newrelic.com/pub/newrelic/el5/x86_64/newrelic-repo-5-3.noarch.rpm
           yum install -y aws-cfn-bootstrap newrelic-sysmond git aws-cli
           nrsysmond-config --set license_key=${NewRelicLicenceKey}
