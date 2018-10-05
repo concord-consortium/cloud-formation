@@ -1,0 +1,17 @@
+{
+  "name": "cloud-formation-scripts",
+  "version": "1.0.0",
+  "description": "scripts to make it easier to create and update stacks",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "create-stack": "node create-stack.js",
+    "create-stack-debug": "node inspect create-stack.js"
+  },
+  "author": "Scott Cytacki",
+  "license": "MIT",
+  "dependencies": {
+    "aws-sdk": "^2.328.0",
+    "yaml-cfn": "^0.2.0"
+  }
+}
