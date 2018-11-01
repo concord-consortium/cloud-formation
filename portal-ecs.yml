@@ -960,7 +960,7 @@ Resources:
 Mappings:
   SSLCertificateMap:
     star.concord.org:
-      Id: arn:aws:iam::612297603577:server-certificate/cloudfront/E3JZ7YRBPKHWAC/cc.wildcard.until.2018
+      Id: arn:aws:acm:us-east-1:612297603577:certificate/2b62511e-ccc8-434b-ba6c-a8c33bbd509e
     star.portal.concord.org:
       Id: arn:aws:acm:us-east-1:612297603577:certificate/4341186a-57a0-4df1-8b61-05969febe57a
     star.staging.concord.org:
