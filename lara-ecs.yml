@@ -106,6 +106,9 @@ Parameters:
   LaraDockerImage:
     Type: String
     Description: docker image to use for the web container and worker container
+  GoogleAnalyticsAccount:
+    Type: String
+    Description: key for Google Analytics
 
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
@@ -413,6 +416,9 @@ Resources:
           Value: !Ref ModelJsonListURL
         - Name: LARA_VERSION
           Value: !Select [1, !Split [":", !Ref LaraDockerImage]]
+        - Name: GOOGLE_ANALYTICS_ACCOUNT
+          Value: !Ref GoogleAnalyticsAccount
+
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -733,6 +739,7 @@ Metadata:
       - CRaterPassword
       - DbHost
       - DbPassword
+      - GoogleAnalyticsAccount
       - LabBookProviderURL
       - ModelJsonListURL
       - NewRelicAppName
