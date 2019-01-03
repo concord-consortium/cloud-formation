@@ -30,10 +30,7 @@ Parameters:
     Type: Number
     Description: |
       the metric value that triggers the second step of scaling.
-      If the metric value is between ScaleUpAlarmThreashold and
-      ScaleUpAlarmThreashold+ScaleUpStepBoundary then the first step adjustment is applied.
-      If the metric is more than ScaleUpAlarmThreashold+ScaleUpStepBoundary then the second
-      step boundary is applied.
+      I believe this vaue is added to the ScaleUpAlarmThreashold to find its absolute value.
   ScaleUpStepAdjustment1:
     Type: Number
     Description: the percent change in number of tasks for the first step of scaling

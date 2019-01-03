@@ -28,7 +28,7 @@ Resources:
   ELBv2:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Subnets: [subnet-7fb16326,subnet-09c2dd40]
+      Subnets: [subnet-13a1133d,subnet-2d925713]
       SecurityGroups: [!Ref 'LoadBalancerSG']
       Scheme: !Ref ELBScheme
       LoadBalancerAttributes:
@@ -42,7 +42,7 @@ Resources:
       AliasTarget:
         DNSName: !GetAtt ELBv2.DNSName
         HostedZoneId: !GetAtt ELBv2.CanonicalHostedZoneID
-      HostedZoneName: concord.org.
+      HostedZoneName: concordqa.org.
       Name: !Ref DomainName
       Type: A
       Weight: 100
@@ -64,7 +64,7 @@ Resources:
         FromPort: '443'
         ToPort: '443'
         CidrIp: 0.0.0.0/0
-      VpcId: vpc-9c9714f9
+      VpcId: vpc-c116d1bb
 
   ClusterIngress:
     Type: AWS::EC2::SecurityGroupIngress

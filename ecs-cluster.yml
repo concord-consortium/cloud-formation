@@ -6,7 +6,7 @@ Parameters:
   EcsInstanceType:
     Type: String
     Description: ECS EC2 instance type
-    Default: t2.micro
+    Default: t2.small
   KeyName:
     Type: String
     Description: Name of existing EC2 KeyPair for SSH to servers
@@ -14,12 +14,12 @@ Parameters:
   VpcId:
     Type: String
     Description: VPC Id of existing VPC
-    AllowedPattern: "^(?:vpc-[0-9a-f]{8}|)$"
-    Default: vpc-9c9714f9
+    AllowedPattern: "^(?:vpc-[0-9a-f]*)$"
+    Default: vpc-0ef54368bc85768ff
   SubnetIds:
     Type: CommaDelimitedList
     Description: Comma separated list of existing VPC Subnet Ids
-    Default: "subnet-7fb16326,subnet-09c2dd40"
+    Default: "subnet-03540c8937acb1963,subnet-0dc2017d2cfe64e01"
   AsgMaxSize:
     Type: Number
     Description: Maxium size of ECS Cluster Auto Scaler. To be safe this should be double
@@ -283,7 +283,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Code:
-        S3Bucket: concord-devops
+        S3Bucket: concordqa-devops
         S3Key: "ecs-autoscale-lamba/index.zip"
       Description: Lambda code for the autoscaling hook triggers invoked when autoscaling events of launching and terminating instance occur
       Handler: "index.lambda_handler"

@@ -3,12 +3,12 @@ Description: lara ecs stack
 Parameters:
   Environment:
     Type: String
-    Default: staging
-    AllowedValues: [staging, production]
+    Default: qa
+    AllowedValues: [qa, staging, production]
     Description: Enter staging or production. Default is staging.
   SSLCertificateName:
     Type: String
-    AllowedValues: [star.concord.org, star.staging.concord.org]
+    AllowedValues: [star.concordqa.org]
     Description: Two certificates are registered with AWS choose which one to use for the
       load balancer
   DatabaseSecurityGroupId:
@@ -106,9 +106,6 @@ Parameters:
   LaraDockerImage:
     Type: String
     Description: docker image to use for the web container and worker container
-  GoogleAnalyticsAccount:
-    Type: String
-    Description: key for Google Analytics
 
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
@@ -124,7 +121,7 @@ Resources:
   AppLoadBalancerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-load-balancer.yml
+      TemplateURL: https://s3.amazonaws.com/concordqa-devops/cloud-formation/ecs-load-balancer.yml
       Parameters:
         LoadBalancerIdleTimeout: '180'
         DomainName: !Ref 'DomainName'
@@ -182,7 +179,7 @@ Resources:
       TargetGroupAttributes:
       - Key: deregistration_delay.timeout_seconds
         Value: '120'
-      VpcId: vpc-9c9714f9
+      VpcId: vpc-c116d1bb
       # Use this name property to force the TargetGroup to be recreated whenever the load
       # balancer is recreated. Otherwise CloudFormation tries to add the TargetGroup
       # to the new load balancer before removing it from the old one. And that results
@@ -416,9 +413,6 @@ Resources:
           Value: !Ref ModelJsonListURL
         - Name: LARA_VERSION
           Value: !Select [1, !Split [":", !Ref LaraDockerImage]]
-        - Name: GOOGLE_ANALYTICS_ACCOUNT
-          Value: !Ref GoogleAnalyticsAccount
-
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -438,7 +432,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      TemplateURL: https://s3.amazonaws.com/concordqa-devops/cloud-formation/task-autoscale-2-step-up.yml
       Parameters:
         ServiceName: !GetAtt AppService.Name
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
@@ -699,7 +693,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      TemplateURL: https://s3.amazonaws.com/concordqa-devops/cloud-formation/task-autoscale-2-step-up.yml
       Parameters:
         ServiceName: !GetAtt WorkerService.Name
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
@@ -725,10 +719,8 @@ Resources:
 
 Mappings:
   SSLCertificateMap:
-    star.concord.org:
-      Id: arn:aws:acm:us-east-1:612297603577:certificate/2b62511e-ccc8-434b-ba6c-a8c33bbd509e
-    star.staging.concord.org:
-      Id: arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560
+    star.concordqa.org:
+      Id: arn:aws:acm:us-east-1:816253370536:certificate/7b8bb00e-7aa4-4b9f-a722-f49c828af83c
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -739,7 +731,6 @@ Metadata:
       - CRaterPassword
       - DbHost
       - DbPassword
-      - GoogleAnalyticsAccount
       - LabBookProviderURL
       - ModelJsonListURL
       - NewRelicAppName
