@@ -26,7 +26,7 @@ Resources:
       TargetGroupAttributes:
       - Key: deregistration_delay.timeout_seconds
         Value: '10'
-      VpcId: vpc-0ef54368bc85768ff
+      VpcId: vpc-9c9714f9
       Name: !Ref TargetGroupName
 
   RedirectTaskDefinition:
