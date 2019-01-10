@@ -289,8 +289,6 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Code:
-        # need to make sure this is accessible from the qa account
-        # and need to make sure the nested resources handle both accounts
         S3Bucket: !Ref LambdaS3Bucket
         S3Key: "ecs-autoscale-lamba/index.zip"
       Description: Lambda code for the autoscaling hook triggers invoked when autoscaling events of launching and terminating instance occur

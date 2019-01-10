@@ -41,11 +41,11 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Subnets: !Ref Subnets
-      SecurityGroups: [!Ref LoadBalancerSG]
+      SecurityGroups: [!Ref 'LoadBalancerSG']
       Scheme: !Ref ELBScheme
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
-        Value: !Ref LoadBalancerIdleTimeout
+        Value: !Ref 'LoadBalancerIdleTimeout'
 
   ELBDNS:
     Type: AWS::Route53::RecordSet

@@ -9,7 +9,7 @@ Parameters:
   SSLCertificateName:
     Type: String
     AllowedValues: [star.concord.org, star.staging.concord.org, star.concordqa.org]
-    Description: Certificates registered with AWS choose which one to use for the
+    Description: Certificates registered with AWS. Choose which one to use for the
       load balancer
   DatabaseSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
