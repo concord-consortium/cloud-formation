@@ -424,6 +424,9 @@ Resources:
           Value: !Ref ModelJsonListURL
         - Name: LARA_VERSION
           Value: !Select [1, !Split [":", !Ref LaraDockerImage]]
+        - Name: GOOGLE_ANALYTICS_ACCOUNT
+          Value: !Ref GoogleAnalyticsAccount
+
 
   LogGroup:
     Type: AWS::Logs::LogGroup
