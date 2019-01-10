@@ -224,6 +224,22 @@ Resources:
       Port: '443'
       Protocol: HTTPS
 
+  AppListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: redirect
+        RedirectConfig:
+          Host: '#{host}'
+          Path: '/#{path}'
+          Port: '443'
+          Protocol: 'HTTPS'
+          Query: '#{query}'
+          StatusCode: HTTP_301
+      LoadBalancerArn: !GetAtt LoadBalancerStack.Outputs.LoadBalancer
+      Port: '80'
+      Protocol: HTTP
+
   AppTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
