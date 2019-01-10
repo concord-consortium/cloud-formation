@@ -8,8 +8,8 @@ Parameters:
     Description: Enter staging or production. Default is staging.
   SSLCertificateName:
     Type: String
-    AllowedValues: [star.concordqa.org]
-    Description: Two certificates are registered with AWS choose which one to use for the
+    AllowedValues: [star.concord.org, star.staging.concord.org, star.concordqa.org]
+    Description: Certificates registered with AWS choose which one to use for the
       load balancer
   DatabaseSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
@@ -108,6 +108,9 @@ Parameters:
   LaraDockerImage:
     Type: String
     Description: docker image to use for the web container and worker container
+  GoogleAnalyticsAccount:
+    Type: String
+    Description: key for Google Analytics
   NestedTemplatesFolder:
     Type: String
     Default: https://s3.amazonaws.com/concord-devops/cloud-formation
