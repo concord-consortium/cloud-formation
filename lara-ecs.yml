@@ -114,6 +114,10 @@ Parameters:
   NestedTemplatesFolder:
     Type: String
     Default: https://s3.amazonaws.com/concord-devops/cloud-formation
+  LoggerUri:
+    Type: String
+    Default: //cc-log-manager.herokuapp.com/api/logs
+    Description: Protocol relative uri for log manager api endpoint. Default is //cc-log-manager.herokuapp.com/api/logs.
 
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
@@ -426,6 +430,8 @@ Resources:
           Value: !Select [1, !Split [":", !Ref LaraDockerImage]]
         - Name: GOOGLE_ANALYTICS_ACCOUNT
           Value: !Ref GoogleAnalyticsAccount
+        - Name: LOGGER_URI
+          Value: !Ref LoggerUri
 
 
   LogGroup:
@@ -695,6 +701,8 @@ Resources:
           Value: !Ref LabBookProviderURL
         - Name: MODEL_JSON_LIST_URL
           Value: !Ref ModelJsonListURL
+        - Name: LOGGER_URI
+          Value: !Ref LoggerUri
 
   WorkerService:
     Type: AWS::ECS::Service
