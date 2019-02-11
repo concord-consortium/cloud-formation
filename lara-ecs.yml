@@ -3,13 +3,13 @@ Description: lara ecs stack
 Parameters:
   Environment:
     Type: String
-    Default: staging
-    AllowedValues: [staging, production]
-    Description: Enter staging or production. Default is staging.
+    Default: qa
+    AllowedValues: [qa, staging, production]
+    Description: Enter staging or production. Default is qa.
   SSLCertificateName:
     Type: String
-    AllowedValues: [star.concord.org, star.staging.concord.org]
-    Description: Two certificates are registered with AWS choose which one to use for the
+    AllowedValues: [star.concord.org, star.staging.concord.org, star.concordqa.org]
+    Description: Certificates registered with AWS. Choose which one to use for the
       load balancer
   DatabaseSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
@@ -19,12 +19,14 @@ Parameters:
     Type: String
     Description: The DNS name that will be created or updated to point at the load
       balancer
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
 
   ClusterStackName:
     Type: String
     Description: The name of the CloudFormation stack that manages the cluster you want
-      this application deployed in.  The cluster security group will be added to the
-      database security group to allow the app to access the database.
+      this application deployed in.  The cluster security group, Vpc, and subnets will be
+      be used by resources in this stack.
 
   AddFakeAuthProvider:
     Type: String
@@ -109,6 +111,9 @@ Parameters:
   GoogleAnalyticsAccount:
     Type: String
     Description: key for Google Analytics
+  NestedTemplatesFolder:
+    Type: String
+    Default: https://s3.amazonaws.com/concord-devops/cloud-formation
   LoggerUri:
     Type: String
     Default: //cc-log-manager.herokuapp.com/api/logs
@@ -128,11 +133,14 @@ Resources:
   AppLoadBalancerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-load-balancer.yml
+      TemplateURL: !Sub "${NestedTemplatesFolder}/ecs-load-balancer.yml"
       Parameters:
         LoadBalancerIdleTimeout: '180'
         DomainName: !Ref 'DomainName'
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+        VpcId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterVpcId' }
+        Subnets: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSubnets' }
+        HostedZoneId: !Ref 'HostedZoneId'
 
   AppListener443:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -186,7 +194,7 @@ Resources:
       TargetGroupAttributes:
       - Key: deregistration_delay.timeout_seconds
         Value: '120'
-      VpcId: vpc-9c9714f9
+      VpcId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterVpcId' }
       # Use this name property to force the TargetGroup to be recreated whenever the load
       # balancer is recreated. Otherwise CloudFormation tries to add the TargetGroup
       # to the new load balancer before removing it from the old one. And that results
@@ -444,7 +452,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      TemplateURL: !Sub "${NestedTemplatesFolder}/task-autoscale-2-step-up.yml"
       Parameters:
         ServiceName: !GetAtt AppService.Name
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
@@ -707,7 +715,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      TemplateURL: !Sub "${NestedTemplatesFolder}/task-autoscale-2-step-up.yml"
       Parameters:
         ServiceName: !GetAtt WorkerService.Name
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
@@ -737,6 +745,8 @@ Mappings:
       Id: arn:aws:acm:us-east-1:612297603577:certificate/2b62511e-ccc8-434b-ba6c-a8c33bbd509e
     star.staging.concord.org:
       Id: arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560
+    star.concordqa.org:
+      Id: arn:aws:acm:us-east-1:816253370536:certificate/7b8bb00e-7aa4-4b9f-a722-f49c828af83c
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -775,6 +785,7 @@ Metadata:
       - CloudWatchLogGroup
       - DatabaseSecurityGroupId
       - DomainName
+      - HostedZoneId
       - Environment
       - MaxNumLaraWebTasks
       - MinNumLaraWebTasks

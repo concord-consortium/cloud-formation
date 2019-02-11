@@ -6,19 +6,20 @@ Parameters:
   EcsInstanceType:
     Type: String
     Description: ECS EC2 instance type
-    Default: t2.micro
+    Default: t2.small
   KeyName:
     Type: String
     Description: Name of existing EC2 KeyPair for SSH to servers
     Default: devops
   VpcId:
-    Type: String
+    Type: AWS::EC2::VPC::Id
     Description: VPC Id of existing VPC
-    AllowedPattern: "^(?:vpc-[0-9a-f]{8}|)$"
+    # QA VpcId: vpc-c116d1bb
     Default: vpc-9c9714f9
   SubnetIds:
-    Type: CommaDelimitedList
-    Description: Comma separated list of existing VPC Subnet Ids
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: List of existing VPC Subnet Ids
+    # QA subnets: "subnet-03540c8937acb1963,subnet-0dc2017d2cfe64e01"
     Default: "subnet-7fb16326,subnet-09c2dd40"
   AsgMaxSize:
     Type: Number
@@ -60,6 +61,11 @@ Parameters:
     Type: String
     Description: 'a json object with the configuration for docker hub. Something like :
       {"https://index.docker.io/v1/":{"username":"[username]", "password":"[password]","email":"email@example.com"}}'
+
+  LambdaS3Bucket:
+    Type: String
+    # QA value: concordqa-devops
+    Default: concord-devops
 
 Resources:
   EcsSecurityGroup:
@@ -283,7 +289,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Code:
-        S3Bucket: concord-devops
+        S3Bucket: !Ref LambdaS3Bucket
         S3Key: "ecs-autoscale-lamba/index.zip"
       Description: Lambda code for the autoscaling hook triggers invoked when autoscaling events of launching and terminating instance occur
       Handler: "index.lambda_handler"
@@ -399,3 +405,12 @@ Outputs:
     Value: !Ref EcsSecurityGroup
     Export:
       Name: !Sub "${AWS::StackName}-ClusterSecurityGroupId"
+  ClusterSubnets:
+    Description: Vpc Subnets used by the cluster
+    Value: !Join [ ',', !Ref SubnetIds]
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterSubnets"
+  ClusterVpcId:
+    Value: !Ref VpcId
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterVpcId"
