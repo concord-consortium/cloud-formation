@@ -5,7 +5,7 @@ Parameters:
     Type: String
     Default: qa
     AllowedValues: [qa, staging, production]
-     Description: Enter staging or production. Default is qa.
+    Description: Enter staging or production. Default is qa.
   SSLCertificateName:
     Type: String
     AllowedValues: [star.concord.org, star.staging.concord.org, star.concordqa.org]
