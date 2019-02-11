@@ -178,10 +178,18 @@ Parameters:
   EnewsAPIListID:
     Type: String
     Description: mailchimp list id for enews
+  CreateLoadBalancerHTTPRedirect:
+    Type: String
+    Description: create a the load balancer listener to redirect http traffic. This is
+      temporary. The stack can't be created when an existing port 80 listener is defined.
+      And the previous version of this stack has one defined in a nested template. This
+      nested template doesn't get cleaned up until after the new template tries to create
+      the new port 80 listener.
+    AllowedValues: ['true', 'false']
 
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
-
+  CreateLoadBalancerHTTPRedirectCond: !Equals [!Ref CreateLoadBalancerHTTPRedirect, 'true']
 Resources:
   LoadBalancerStack:
     Type: AWS::CloudFormation::Stack
@@ -241,15 +249,23 @@ Resources:
       Port: '443'
       Protocol: HTTPS
 
-  HTTPSRedirectStack:
-    Type: AWS::CloudFormation::Stack
+
+  AppListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: CreateLoadBalancerHTTPRedirectCond
     Properties:
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-https-redirect.yml
-      Parameters:
-        # LearnStagingRedirect
-        TargetGroupName: !Sub '${ShortName}Redir-${LoadBalancerStack.Outputs.LoadBalancerEndingId}'
-        ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
-        LoadBalancerArn: !GetAtt LoadBalancerStack.Outputs.LoadBalancer
+      DefaultActions:
+      - Type: redirect
+        RedirectConfig:
+          Host: '#{host}'
+          Path: '/#{path}'
+          Port: '443'
+          Protocol: 'HTTPS'
+          Query: '#{query}'
+          StatusCode: HTTP_301
+      LoadBalancerArn: !GetAtt LoadBalancerStack.Outputs.LoadBalancer
+      Port: '80'
+      Protocol: HTTP
 
   ElasticSearchStack:
     Type: AWS::CloudFormation::Stack
