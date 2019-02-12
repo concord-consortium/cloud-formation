@@ -4,6 +4,7 @@ This repo holds the CloudFormation stacks used for deployment and development of
 2. Portal
 3. Log Ingester
 4. api.concord.org
+5. Question Rater
 
 [LARA Deployment](https://docs.google.com/document/d/1NS4MGch4cmwSFN7UJdaNFtBUqMMNe55R2fRuEHEhf0o/edit#heading=h.2f262hz7x02h)
 (if you have access)

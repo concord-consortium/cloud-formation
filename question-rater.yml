@@ -1,0 +1,253 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Question rater stack
+# Metadata:
+
+Parameters:
+  Environment:
+    Type: String
+    Description: Lowercase name of environment (either staging or production)
+    Default: staging
+    AllowedValues: [staging, production]
+  ApiGatewayBasePath:
+    Type: String
+    Description: Base path for API at https://api.concord.org/ (staging should use question-rater-staging)
+    Default: question-rater
+  AlarmEmail:
+    Type: String
+    Description: Email address to notify when the question rater has triggered an alarm
+
+Resources:
+
+  ProxyLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Proxies xml requests from Lara to question rater service
+      FunctionName: !Sub "question-rater-${Environment}"
+      Handler: index.handler
+      MemorySize: 128
+      Role: !GetAtt [ProxyLambdaIamRole, Arn]
+      Runtime: nodejs8.10
+      Timeout: 60
+      # Environment:
+      #   Variables:
+      #     RATER_ENDPOINT: TODO
+      Code:
+        S3Bucket: concord-devops
+        S3Key: question-rater/question-rater.zip
+      Tags:
+        - Key: Contact
+          Value: dmartin
+        - Key: Environment
+          Value: !Ref "Environment"
+
+  ProxyLambdaIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "question-rater-${Environment}-lambda"
+      # Path:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        -
+         PolicyName: !Sub "question-rater-${Environment}-lambda"
+         PolicyDocument:
+           Version: 2012-10-17
+           Statement:
+              -
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/question-rater-${Environment}:*"
+
+  ApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "question-rater-${Environment}"
+      Description: Accepts xml requests from Lara and proxies them to external rating service
+      ApiKeySourceType: HEADER
+      EndpointConfiguration:
+        Types:
+          - EDGE
+      FailOnWarnings: true
+
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt [ApiGatewayCloudWatchLogsRole, Arn]
+
+  ApiGatewayCloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      RoleName: !Sub "question-rater-${Environment}-api-cloudwatch"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
+  ApiGatewayStage:
+    DependsOn: ApiGatewayAccount
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId: !Ref ApiGatewayDeployment
+      MethodSettings:
+        -
+          DataTraceEnabled: true
+          HttpMethod: POST
+          LoggingLevel: INFO
+          ResourcePath: "/*"
+      RestApiId: !Ref ApiGateway
+      StageName: latest
+
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayOptionsRequest
+      - ApiGatewayPostRequest
+    Properties:
+      RestApiId: !Ref ApiGateway
+
+  ApiGatewayOptionsRequest:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          -
+            ResponseParameters:
+              "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              "method.response.header.Access-Control-Allow-Methods": "'POST,OPTIONS'"
+              "method.response.header.Access-Control-Allow-Origin": "'*'"
+            StatusCode: "200"
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          "text/xml": "{\"statusCode\": 200}"
+        Type: MOCK
+      MethodResponses:
+        -
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+          StatusCode: "200"
+      ResourceId: !GetAtt [ApiGateway, RootResourceId]
+      RestApiId: !Ref ApiGateway
+
+  ApiGatewayPostInvoke:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt [ProxyLambdaFunction, Arn]
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/"
+
+  ApiGatewayPostRequest:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+          - lambdaArn: !GetAtt [ProxyLambdaFunction, Arn]
+        IntegrationResponses:
+          -
+            StatusCode: "200"
+            ResponseTemplates:
+              "application/json": ""
+      ResourceId: !GetAtt [ApiGateway, RootResourceId]
+      RestApiId: !Ref ApiGateway
+      MethodResponses:
+        -
+          StatusCode: "200"
+          ResponseModels:
+            "text/xml": Empty
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Origin": true
+
+  ApiGatewayMapping:
+    DependsOn: ApiGatewayStage
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      BasePath: !Ref ApiGatewayBasePath
+      DomainName: api.concord.org
+      RestApiId: !Ref ApiGateway
+      Stage: latest
+
+  # Alarms
+
+  AlarmNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        -
+          Endpoint: !Ref AlarmEmail
+          Protocol: email
+
+  ApiGatewayErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "question-rater-${Environment}-api-alarm"
+      AlarmDescription: Alarms when an API call results in a 5xx error
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+      Dimensions:
+        -
+          Name: ApiName
+          Value: !Sub "question-rater-${Environment}"
+      MetricName: "5XXError"
+      Namespace: AWS/Api­Gateway
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+
+  ApiGatewayProxyLambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "question-rater-${Environment}-lambda-alarm"
+      AlarmDescription: Alarms when the lambda call results in an error
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+      Dimensions:
+        -
+          Name: Resource
+          Value: !Sub "question-rater-${Environment}"
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+
+Outputs:
+  RawQuestionRaterUrl:
+    Description: Raw URL of the API gateway for question rater
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/latest/"
+  NiceQuestionRaterUrl:
+    Description: Nice URL of the API gateway for question rater
+    Value: !Sub "https://api.concord.org/${ApiGatewayBasePath}/"
