@@ -15,6 +15,10 @@ Parameters:
   AlarmEmail:
     Type: String
     Description: Email address to notify when the question rater has triggered an alarm
+  LambdaZipFilename:
+    Type: String
+    Description: Filename of lambda .zip file in s3://concord-devops/question-rater
+    Default: question-rater.zip
 
 Resources:
 
@@ -28,12 +32,12 @@ Resources:
       Role: !GetAtt [ProxyLambdaIamRole, Arn]
       Runtime: nodejs8.10
       Timeout: 60
-      # Environment:
-      #   Variables:
-      #     RATER_ENDPOINT: TODO
+      Environment:
+        Variables:
+          RATER_ENDPOINT: "https://us-central1-esaaf-auto-score-test.cloudfunctions.net/getPrediction"
       Code:
         S3Bucket: concord-devops
-        S3Key: question-rater/question-rater.zip
+        S3Key: !Sub "question-rater/${LambdaZipFilename}"
       Tags:
         - Key: Contact
           Value: dmartin
