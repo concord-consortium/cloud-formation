@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
+
 Description: Log ingester stack
-# Metadata:
 
 Parameters:
   Environment:
@@ -29,7 +29,7 @@ Parameters:
   DbSize:
     Type: String
     Description: Database size in GB
-    Default: 300
+    Default: "300"
     MinLength: 1
     AllowedPattern: "^[0-9]+$"
     ConstraintDescription: Must be an integer
@@ -41,7 +41,7 @@ Parameters:
   KinesisStreamShardCount:
     Type: String
     Description: Number of shards for Kinesis Stream (use > 1 for production)
-    Default: 1
+    Default: "1"
     MinLength: 1
     AllowedPattern: "^[0-9]+$"
     ConstraintDescription: Must be an integer
@@ -55,12 +55,13 @@ Parameters:
     Type: String
     Description: Email address to notify when the log ingester has triggered an alarm
 
-#Mappings:
+  LambdaZipFilename:
+    Type: String
+    Description: Filename of lambda .zip file in s3://concord-devops/log-ingester
+    Default: kinesis-to-rds.zip
 
-# Conditions:
 
 Resources:
-
   #
   # database setup
   #
@@ -191,8 +192,7 @@ Resources:
           RDS_DATABASE_URL: !Sub "postgres://${DbUser}:${DbPassword}@${DBInstance.Endpoint.Address}/log_manager"
       Code:
         S3Bucket: concord-devops
-        S3Key: log-ingester/kinesis-to-rds.zip
-        # S3ObjectVersion:
+        S3Key: !Sub "log-ingester/${LambdaZipFilename}"
       Tags:
         - Key: Contact
           Value: dmartin
@@ -315,7 +315,7 @@ Resources:
               "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               "method.response.header.Access-Control-Allow-Methods": "'POST,OPTIONS'"
               "method.response.header.Access-Control-Allow-Origin": "'*'"
-            StatusCode: 200
+            StatusCode: "200"
         PassthroughBehavior: WHEN_NO_MATCH
         RequestTemplates:
           "application/json": "{\"statusCode\": 200}"
@@ -326,7 +326,7 @@ Resources:
             "method.response.header.Access-Control-Allow-Headers": true
             "method.response.header.Access-Control-Allow-Methods": true
             "method.response.header.Access-Control-Allow-Origin": true
-          StatusCode: 200
+          StatusCode: "200"
       ResourceId: !Ref ApiGatewayLogResource
       RestApiId: !Ref ApiGateway
 
@@ -369,14 +369,14 @@ Resources:
         IntegrationHttpMethod: POST
         IntegrationResponses:
           -
-            SelectionPattern: 200
+            SelectionPattern: "200"
             ResponseParameters:
               "method.response.header.Access-Control-Allow-Origin": "'*'"
-            StatusCode: 201
+            StatusCode: "201"
           -
             ResponseParameters:
               "method.response.header.Access-Control-Allow-Origin": "'*'"
-            StatusCode: 200
+            StatusCode: "200"
         PassthroughBehavior: WHEN_NO_TEMPLATES
         RequestTemplates:
           "application/json": !Sub |
@@ -393,18 +393,17 @@ Resources:
         -
           ResponseParameters:
             "method.response.header.Access-Control-Allow-Origin": true
-          StatusCode: 200
+          StatusCode: "200"
         -
           ResponseParameters:
             "method.response.header.Access-Control-Allow-Origin": true
-          StatusCode: 201
+          StatusCode: "201"
       ResourceId: !Ref ApiGatewayLogResource
       RestApiId: !Ref ApiGateway
 
   ApiGatewayMapping:
     Type: AWS::ApiGateway::BasePathMapping
-    DependsOn:
-      - ApiGateway
+    DependsOn: ApiGatewayStage
     Properties:
       BasePath: !Ref ApiGatewayBasePath
       DomainName: api.concord.org
@@ -460,6 +459,7 @@ Resources:
       Threshold: 1
 
 Outputs:
+
   RawIngestionUrl:
     Description: Raw URL of the API gateway log ingester
     Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/latest/logs"
