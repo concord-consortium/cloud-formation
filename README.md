@@ -41,7 +41,7 @@ Other CloudFormation templates using Lambda functions can then route requests vi
 
 where `ApiGatewayBasePath` is a CloudFormation parameter and `ApiGateway` is a `AWS::ApiGateway::RestApi`.  If, for example, `ApiGatewayBasePath` is `log-staging` and the endpoint url of the `latest` stage ApiGateway is `https://k254j5v1p0.execute-api.us-east-1.amazonaws.com/latest/` then after the gateway mapping completes `https://api.concord.org/log-staging/logs` will route to `https://k254j5v1p0.execute-api.us-east-1.amazonaws.com/log-staging/logs`.
 
-# Log Ingester
+## Log Ingester
 
 The log-ingester.yml CloudFormation template creates the following resources (along with the needed roles)
 
@@ -53,3 +53,14 @@ The log-ingester.yml CloudFormation template creates the following resources (al
 The API Gateway takes POST logging requests to /logs and, via template mapping, and sends a record to the Kinesis stream in the form of <current millisecond timestamp>;<POST body>.  The Kinesis stream automatically triggers the Lambda function which parses the record and then creates a canonical log record that is inserted into the RDS database into the logs table.
 
 This ingester is meant to replace the Heroku based log manager.
+
+## Locally validating CloudFormation templates
+
+You can locally validate the CloudFormation templates in two ways:
+
+1. Use [cfn-lint](https://github.com/awslabs/cfn-python-lint)
+   1. Run `pip install cfn-lint` to install it
+   2. Run `cfn-lint <filename>` to lint the file specified
+2. Use [aws cloudformation validate-template](https://docs.aws.amazon.com/cli/latest/reference/cloudformation/validate-template.html)
+   1. Install the [aws cli](https://aws.amazon.com/cli/)
+   2. Run `aws cloudformation validate-template --template-body file://<filename>` to validate the file specified
