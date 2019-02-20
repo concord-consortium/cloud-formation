@@ -69,6 +69,8 @@ Parameters:
       will not be configured.
   CRaterPassword:
     Type: String
+  CRaterUrl:
+    Type: String
   DbHost:
     Type: String
     Description: The hostname of the database. Template assumes database name is portal.
@@ -391,6 +393,8 @@ Resources:
           Value: !Ref CRaterPassword
         - Name: C_RATER_USERNAME
           Value: extSysCRTR02dev
+        - Name: C_RATER_URL
+          value: !Ref CRaterUrl
 
         - Name: DB_HOST
           Value: !Ref DbHost
@@ -672,6 +676,8 @@ Resources:
           Value: !Ref CRaterPassword
         - Name: C_RATER_USERNAME
           Value: extSysCRTR02dev
+        - Name: C_RATER_URL
+          value: !Ref CRaterUrl
 
         - Name: DB_HOST
           Value: !Ref DbHost
@@ -755,6 +761,7 @@ Metadata:
       Parameters:
       - LaraDockerImage
       - CRaterPassword
+      - CRaterUrl
       - DbHost
       - DbPassword
       - GoogleAnalyticsAccount
