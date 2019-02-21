@@ -394,7 +394,7 @@ Resources:
         - Name: C_RATER_USERNAME
           Value: extSysCRTR02dev
         - Name: C_RATER_URL
-          value: !Ref CRaterUrl
+          Value: !Ref CRaterUrl
 
         - Name: DB_HOST
           Value: !Ref DbHost
@@ -677,7 +677,7 @@ Resources:
         - Name: C_RATER_USERNAME
           Value: extSysCRTR02dev
         - Name: C_RATER_URL
-          value: !Ref CRaterUrl
+          Value: !Ref CRaterUrl
 
         - Name: DB_HOST
           Value: !Ref DbHost
