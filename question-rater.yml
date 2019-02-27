@@ -19,6 +19,16 @@ Parameters:
     Type: String
     Description: Filename of lambda .zip file in s3://concord-devops/question-rater
     Default: question-rater.zip
+  CRaterUsername:
+    Type: String
+    Description: Username for api
+    Default: extSysCRTR02dev
+  CRaterPassword:
+    Type: String
+    Description: Password for api
+  AzureQ2ApiToken:
+    Type: String
+    Description: Api token for Azure Question 2
 
 Resources:
 
@@ -34,7 +44,9 @@ Resources:
       Timeout: 60
       Environment:
         Variables:
-          RATER_ENDPOINT: "https://us-central1-esaaf-auto-score-test.cloudfunctions.net/getPrediction"
+          C_RATER_USERNAME: !Ref CRaterUsername
+          C_RATER_PASSWORD: !Ref CRaterPassword
+          AZURE_Q2_API_TOKEN: !Ref AzureQ2ApiToken
       Code:
         S3Bucket: concord-devops
         S3Key: !Sub "question-rater/${LambdaZipFilename}"
