@@ -29,6 +29,13 @@ Parameters:
   AzureQ2ApiToken:
     Type: String
     Description: Api token for Azure Question 2
+  ApiGatewayMonthlyLimit:
+    Type: String
+    Description: Monthly limit of number of requests
+    Default: "50000"
+    MinLength: 1
+    AllowedPattern: "^[0-9]+$"
+    ConstraintDescription: Must be an integer
 
 Resources:
 
@@ -137,36 +144,8 @@ Resources:
   ApiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
-      - ApiGatewayOptionsRequest
       - ApiGatewayPostRequest
     Properties:
-      RestApiId: !Ref ApiGateway
-
-  ApiGatewayOptionsRequest:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      AuthorizationType: NONE
-      HttpMethod: OPTIONS
-      Integration:
-        IntegrationResponses:
-          -
-            ResponseParameters:
-              "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              "method.response.header.Access-Control-Allow-Methods": "'POST,OPTIONS'"
-              "method.response.header.Access-Control-Allow-Origin": "'*'"
-            StatusCode: "200"
-        PassthroughBehavior: WHEN_NO_MATCH
-        RequestTemplates:
-          "text/xml": "{\"statusCode\": 200}"
-        Type: MOCK
-      MethodResponses:
-        -
-          ResponseParameters:
-            "method.response.header.Access-Control-Allow-Headers": true
-            "method.response.header.Access-Control-Allow-Methods": true
-            "method.response.header.Access-Control-Allow-Origin": true
-          StatusCode: "200"
-      ResourceId: !GetAtt [ApiGateway, RootResourceId]
       RestApiId: !Ref ApiGateway
 
   ApiGatewayPostInvoke:
@@ -180,6 +159,7 @@ Resources:
   ApiGatewayPostRequest:
     Type: AWS::ApiGateway::Method
     Properties:
+      ApiKeyRequired: true
       AuthorizationType: NONE
       HttpMethod: POST
       Integration:
@@ -260,6 +240,37 @@ Resources:
       Statistic: Sum
       Threshold: 1
 
+  ApiGatewayUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      ApiStages:
+      - ApiId: !Ref ApiGateway
+        Stage: !Ref ApiGatewayStage
+      Description: Throttle question rater requests
+      Quota:
+        Limit: !Ref ApiGatewayMonthlyLimit
+        Period: MONTH
+      Throttle:
+        BurstLimit: 200
+        RateLimit: 100
+      UsagePlanName: !Sub "question-rater-${Environment}"
+
+  ApiGatewayKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref ApiGateway
+          StageName: latest
+
+  ApiGatewayUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      # NOTE: we don't name the key here as that does not allow us to update it without replacement
+      KeyId: !Ref ApiGatewayKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref ApiGatewayUsagePlan
+
 Outputs:
   RawQuestionRaterUrl:
     Description: Raw URL of the API gateway for question rater
@@ -267,3 +278,6 @@ Outputs:
   NiceQuestionRaterUrl:
     Description: Nice URL of the API gateway for question rater
     Value: !Sub "https://api.concord.org/${ApiGatewayBasePath}/"
+  ApiGatewayKeyID:
+    Description: API Gateway Key ID
+    Value: !Ref ApiGatewayKey
