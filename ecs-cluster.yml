@@ -1,5 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
+  # For the future there is a better way to handle updating the ECS recommended ami updates. An example of it is here:
+  # https://github.com/aws-samples/ecs-refarch-cloudformation/blob/master/infrastructure/ecs-cluster.yaml#L32-L35
   EcsAmiId:
     Type: String
     Description: ECS AMI id
@@ -204,6 +206,8 @@ Resources:
         # this will make it wait on the cfn-signal above before marking the instance
         # as successful
         WaitOnResourceSignals: true
+        # Increase the batch size so this completes faster
+        MaxBatchSize: "3"
         MinInstancesInService: !Ref MinInstancesInServiceDuringUpdate
         PauseTime: PT5M
         SuspendProcesses:
