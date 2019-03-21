@@ -176,6 +176,7 @@ Resources:
       Role: ecsServiceRole
       TaskDefinition: !Ref AppTaskDefinition
       DesiredCount: !Ref MinNumLaraWebTasks
+      HealthCheckGracePeriodSeconds: '60'
       LoadBalancers:
       - TargetGroupArn: !Ref AppTargetGroup
         ContainerPort: '80'
@@ -212,11 +213,18 @@ Resources:
       ContainerDefinitions:
       - Name: App
         Image: !Ref LaraDockerImage
+        # monitoring the CPU levels over 3 months with CPU set to 512 and 1 unicorn worker
+        # the average usage over 15min intervals maxed out at 42%
+        # the maxium usage occationally spiked to 200% but only for brief periods
+        # we are now going to try using 2 unicorn workers to see how the cpu usage changes
         Cpu: "512"
         PortMappings:
         - ContainerPort: '80'
         Command:
         - "./docker/prod/run.sh"
+        # monitoring the CPU levels over 3 months with memory set to 900 and 1 unicorn worker
+        # the maxium usage was 55% at which point it appears the task was killed off
+        # We are now going to try 2 unicorn workers to see how the memory and cpu responds
         Memory: "900"
         Essential: "true"
         LogConfiguration:
@@ -413,11 +421,19 @@ Resources:
         - Name: NEW_RELIC_LICENSE_KEY
           Value: !Ref NewRelicLicenseKey
         # Number of unicorn processes to start up. Most people recommend
-        # 2 times the number of cores. Since we are containerized keeping this at 1 seems
-        # to work well.  If you change this number then you should also tweak the
-        # CPU and Memory setting of this task.
+        # 2 times the number of cores. We were running this at only 1 for a few years.
+        # Looking at the data I'd like to try 2 for a while for the following reasons:
+        # - the aws loadbalancer is not smart so it doesn't know if a target is busy, with
+        #   with 1 worker if a long request is done by the worker that will slow down the
+        #   next request too as it sits in the queue. With 2 workers per target this
+        #   should be less likely to happen.
+        # - 2 workers should more efficiently use the memory and possibly CPU. Some of the
+        #   memory should be shared because we are using the prefork approach. There should
+        #   also be some overhead of the operating system which will now be shared across
+        #   both workers.
+        # This was switched to 2 around March 19, 2019
         - Name: NUM_UNICORN_PROCESSES
-          Value: '1'
+          Value: '2'
         - Name: RAILS_STDOUT_LOGGING
           Value: 'true'
         - Name: ROLLBARS_KEY
@@ -472,7 +488,9 @@ Resources:
         ScaleUpStepBoundary: '25'
         ScaleUpStepAdjustment1: '100'
         ScaleUpStepAdjustment2: '200'
-        ScaleUpAlarmThreshold: '75'
+        # At 75 with 1 unicorn worker this rarely triggered a scale event even when the service was
+        # being used heavily. I'm going to try 70 with 2 unicorn workers for a while
+        ScaleUpAlarmThreshold: '70'
         # this 2 minute evaluation period helps with an initial spike
         # when a new container is started, and it also helps the CPUUtilization start
         # to reflect the change in capacity. This is also the point of the Cooldown setting
