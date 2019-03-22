@@ -778,7 +778,9 @@ Resources:
         ScaleUpAlarmPeriod: '60'
         ScaleDownCooldown: '300'
         ScaleDownStepAdjustment: '-1'
-        ScaleDownAlarmThreshold: '35'
+        # March 22, 2019 changed this to 20 from 35, otherwise the workers were cycling
+        # up and down
+        ScaleDownAlarmThreshold: '20'
         # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
         # this approach helps offset a running average affecting the responsiveness.
         # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
