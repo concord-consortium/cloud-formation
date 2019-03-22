@@ -726,11 +726,6 @@ Resources:
   # workers in each service. So individual workers might have spiked higher.
   # This number of 600 provides quite a lot of padding
   #
-  # Follow on notes: I'm not sure how I decided there were more than one task in the
-  # the service in 2017.  It seems recently there is only one task. However there isn't a
-  # metric for this. When it is loadbalanced we can look at healthy hosts but with just
-  # ECS we don't have a metric
-  #
   # Notes from March 21, 2019
   # looking at 3 months of usage with a worker/task of 1, cpu:1024, memory:600
   # CPU maxing out at 65% with some spikes during deploment (it seems)
