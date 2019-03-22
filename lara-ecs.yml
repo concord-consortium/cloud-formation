@@ -509,6 +509,22 @@ Resources:
         ScaleDownAlarmEvaluationPeriods: '5'
         ScaleDownAlarmPeriod: '60'
 
+  # WorkerTask Notes from March 21:
+  # looking over 3 months when the Cpu: 512, Memory: 900, and delayed_job_workers:1.
+  # We had a max of max 40% CPU utilization with spikes higher during
+  # deployments.
+  # The max value of the average/hour is 12% over those 3 months.
+  # Memory usage max of max topped out at 13%
+  #
+  # It is not easy to increase the number of workers per task because the 'run' command
+  # we are using so the process is not run in the background only allows one worker to
+  # run.
+  #
+  # We are trying 2 changes:
+  # Memory: 256, CPU: 64
+  # this should give us more capacity in the cluster for more Tasks, and trigger
+  # autoscaling if the worker is working hard.
+  # It would be better to add a queue depth measure
   WorkerTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -516,11 +532,11 @@ Resources:
       ContainerDefinitions:
       - Name: Worker
         Image: !Ref LaraDockerImage
-        Cpu: "512"
+        Cpu: "64"
         Command:
         - script/delayed_job
         - run
-        Memory: "900"
+        Memory: "256"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
@@ -755,7 +771,9 @@ Resources:
         ScaleUpStepBoundary: '25'
         ScaleUpStepAdjustment1: '100'
         ScaleUpStepAdjustment2: '200'
-        ScaleUpAlarmThreshold: '75'
+        # March 21, 2019 - decreased this to 70 along with some other CPU changes inorder to
+        # trigger more scaling
+        ScaleUpAlarmThreshold: '70'
         ScaleUpAlarmEvaluationPeriods: '1'
         ScaleUpAlarmPeriod: '60'
         ScaleDownCooldown: '300'

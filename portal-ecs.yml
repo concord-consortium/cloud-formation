@@ -717,6 +717,28 @@ Resources:
         - !Ref ReportDomainName
       Priority: '1'
 
+
+  # Notes from Nov 14, 2017
+  # Reviewing data over 4 weeks of usage
+  # several CPU spikes up to 768 CPU and one spike up to 1024.
+  # Since we are running on CPU rich Servers it is safe to reserve as much as the spikes
+  # the workers never used more than 270mb of memory. That number is an average of the
+  # workers in each service. So individual workers might have spiked higher.
+  # This number of 600 provides quite a lot of padding
+  #
+  # Follow on notes: I'm not sure how I decided there were more than one task in the
+  # the service in 2017.  It seems recently there is only one task. However there isn't a
+  # metric for this. When it is loadbalanced we can look at healthy hosts but with just
+  # ECS we don't have a metric
+  #
+  # Notes from March 21, 2019
+  # looking at 3 months of usage with a worker/task of 1, cpu:1024, memory:600
+  # CPU maxing out at 65% with some spikes during deploment (it seems)
+  # Memory maxing out at 50%
+  # I'm trying two changes to use resources better and trigger more autoscaling:
+  # Cpu: 512, Memory: 384
+  # what we really need for autoscaling though is a queue depth metric so we can get a
+  # rough sense of how far behind we are getting on our queue
   WorkerTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -724,18 +746,11 @@ Resources:
       ContainerDefinitions:
       - Name: Worker
         Image: !Ref PortalDockerImage
-        # Reviewing data over 4 weeks of usage the workers had several spikes up to
-        # 768 CPU and one spike up to 1024. Since we are running on CPU rich Servers
-        # it is safe to reserve as much as the spikes
-        Cpu: "1024"
+        Cpu: "512"
         Command:
         - script/delayed_job
         - run
-        # Reviewing data over 4 weeks of usage the workers never used more than 270mb
-        # of memory. That number is an average of the workers in each service. So
-        # individual workers might have spiked higher. This number of 600 provides
-        # quite a lot of padding
-        Memory: "600"
+        Memory: "384"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
@@ -858,7 +873,8 @@ Resources:
         ScaleUpStepBoundary: '25'
         ScaleUpStepAdjustment1: '100'
         ScaleUpStepAdjustment2: '200'
-        ScaleUpAlarmThreshold: '75'
+        # March 21, 2019 - decreasing this to 70 to trigger more scaling
+        ScaleUpAlarmThreshold: '70'
         ScaleUpAlarmEvaluationPeriods: '1'
         ScaleUpAlarmPeriod: '60'
         ScaleDownCooldown: '300'
