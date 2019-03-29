@@ -387,7 +387,7 @@ Resources:
     Properties:
       EvaluationPeriods: '5'
       Statistic: Average
-      Threshold: '25'
+      Threshold: '40'
       Period: '60'
       AlarmActions:
       - !Ref CPUReservationScaleDownPolicy
