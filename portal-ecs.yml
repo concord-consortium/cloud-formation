@@ -734,6 +734,14 @@ Resources:
   # Cpu: 512, Memory: 384
   # what we really need for autoscaling though is a queue depth metric so we can get a
   # rough sense of how far behind we are getting on our queue
+  #
+  # Notes from March 26, 2019
+  # The worker was running around 60% CPU usage under load. Then when a few more tasks
+  # came in, the processing time increased probably because of a delayed queue. So I'm
+  # decreasing the Cpu limit to 384 this will cause the percent usage to be  80% which
+  # will trigger an autoscale event
+  # note: this change was not deployed until March 28
+
   WorkerTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -741,7 +749,7 @@ Resources:
       ContainerDefinitions:
       - Name: Worker
         Image: !Ref PortalDockerImage
-        Cpu: "512"
+        Cpu: "384"
         Command:
         - script/delayed_job
         - run
@@ -874,7 +882,8 @@ Resources:
         ScaleUpAlarmPeriod: '60'
         ScaleDownCooldown: '300'
         ScaleDownStepAdjustment: '-1'
-        ScaleDownAlarmThreshold: '35'
+        # March 22, 2019 changing from 35 to 20 to prevent cycling up and down
+        ScaleDownAlarmThreshold: '20'
         # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
         # this approach helps offset a running average affecting the responsiveness.
         # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
