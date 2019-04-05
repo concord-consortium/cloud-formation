@@ -552,6 +552,15 @@ Resources:
       DesiredCount: '1'
       Cluster: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
 
+  # 2019-04-04
+  # Most of the time the report task is just sitting around. So it doesn't need to
+  # reserve a lot of Cpu. A much better approach would be look again at the parts of the
+  # reporting that are slow and move them into worker, then we can get rid of this report
+  # task. But in the meantime we an set the Cpu low, and just let it spike up to use as
+  # much of the available CPU as it can, when someone decides to use it.
+  # So we'll move the Cpu down from 512 to 128.
+  # Looking at the memory usage of learn the report service is maxing out around 40%
+  # So I'll decrease the memory reservation to 1400 which is the same as the app task
   ReportTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -559,14 +568,14 @@ Resources:
       ContainerDefinitions:
       - Name: Report
         Image: !Ref PortalDockerImage
-        Cpu: "512"
+        Cpu: "128"
         PortMappings:
         - ContainerPort: '80'
         Command:
         - bash
         - '-c'
         - 'chmod a+x docker/prod/run.sh && docker/prod/run.sh'
-        Memory: "2500"
+        Memory: "1400"
         Essential: "true"
         LogConfiguration:
           LogDriver: awslogs
@@ -976,6 +985,10 @@ Resources:
       Port: '80'
       Protocol: HTTP
 
+  # 2019-04-04:
+  # Looking at more than 4 weeks of data Solr is only using 10% of its alocated CPU
+  # So we'll decrease it to 32 CPU Units which ought to bring it up to 40% usage.
+  # Memory is running at 60% usage so the current value of 600 seems good.
   SolrTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -988,7 +1001,7 @@ Resources:
         # during a reindex though it can spike up to 512 units ECS
         # will allow it go way over the value of 128 here so this seems
         # like a good compromise
-        Cpu: "128"
+        Cpu: "32"
         PortMappings:
         - ContainerPort: '8983'
         Command:
