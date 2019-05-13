@@ -135,6 +135,7 @@ Resources:
       MethodSettings:
         -
           DataTraceEnabled: true
+          MetricsEnabled: true
           HttpMethod: POST
           LoggingLevel: INFO
           ResourcePath: "/*"
