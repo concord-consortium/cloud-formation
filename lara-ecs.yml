@@ -122,7 +122,13 @@ Parameters:
     Type: String
     Default: //cc-log-manager.herokuapp.com/api/logs
     Description: Protocol relative uri for log manager api endpoint. Default is //cc-log-manager.herokuapp.com/api/logs.
-
+  ReportServiceToken:
+    Type: String
+    Description: secret key for LARA to use to send data to the report service
+  ReportServiceURL:
+    Type: String
+    Description: URL to the report service for importing activity structure
+    Default: https://us-central1-report-service-dev.cloudfunctions.net/api
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
   AddITSITest: !Not [!Equals [!Ref ITSITestSecret, ""]]
@@ -468,7 +474,12 @@ Resources:
           Value: !Ref GoogleAnalyticsAccount
         - Name: LOGGER_URI
           Value: !Ref LoggerUri
-
+        - Name: REPORT_SERVICE_TOKEN
+          Value: !Ref ReportServiceToken
+        - Name: REPORT_SERVICE_URL
+          Value: !Ref ReportServiceURL
+        - Name: REPORT_SERVICE_SELF_URL
+          Value: !Sub 'https://${DomainName}'
 
   LogGroup:
     Type: AWS::Logs::LogGroup
