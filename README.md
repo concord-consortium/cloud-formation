@@ -55,6 +55,45 @@ The API Gateway takes POST logging requests to /logs and, via template mapping, 
 
 This ingester is meant to replace the Heroku based log manager.
 
+If you do not import the existing log manager data from Heroku the ingester schema needs to be manually created by connecting to the RDS instance that is created and then running the following queries:
+
+```
+CREATE EXTENSION IF NOT EXISTS hstore;
+
+CREATE TABLE logs (
+    id integer NOT NULL,
+    session character varying(255),
+    username character varying(255),
+    application character varying(255),
+    activity character varying(255),
+    event character varying(255),
+    "time" timestamp without time zone,
+    parameters hstore DEFAULT ''::hstore NOT NULL,
+    extras hstore DEFAULT ''::hstore NOT NULL,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone,
+    event_value character varying(255),
+    run_remote_endpoint character varying(255)
+);
+
+CREATE SEQUENCE logs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER TABLE ONLY logs ALTER COLUMN id SET DEFAULT nextval('logs_id_seq'::regclass);
+ALTER TABLE ONLY logs ADD CONSTRAINT logs_pkey PRIMARY KEY (id);
+CREATE INDEX index_logs_on_activity ON logs USING btree (activity);
+CREATE INDEX index_logs_on_application ON logs USING btree (application);
+CREATE INDEX index_logs_on_event ON logs USING btree (event);
+CREATE INDEX index_logs_on_run_remote_endpoint ON logs USING btree (run_remote_endpoint) WHERE (run_remote_endpoint IS NOT NULL);
+CREATE INDEX index_logs_on_session ON logs USING btree (session);
+CREATE INDEX index_logs_on_time ON logs USING btree ("time");
+CREATE INDEX index_logs_on_username ON logs USING btree (username);
+```
+
 ## Locally validating CloudFormation templates
 
 You can locally validate the CloudFormation templates in two ways:
