@@ -206,6 +206,25 @@ Resources:
       # in an error.
       Name: !Sub "${AWS::StackName}-${AppLoadBalancerStack.Outputs.LoadBalancerEndingId}"
 
+  # 2019-03-20
+  # monitoring the CPU levels over 3 months with CPU: 512, Memory: 900 and 1 unicorn worker
+  # the average CPU usage over 15min intervals maxed out at 42%
+  # the maxium CPU usage occationally spiked to 200% but only for brief periods
+  # the maxium Memory usage was 55% at which point it appears the task was killed off
+  # We are now going to try using 2 unicorn workers to see how the memory and cpu usage changes
+  #
+  # 2019-04-09
+  # Over the last 2 weeks with the CPU: 512, Memory: 900, and 2 unicorn workers
+  # the average CPU usage over 5min intervales maxed out at 70% with just a few spikes
+  # on average the CPU usage didn't go higher than 52%
+  # the maxium CPU usage spiked up to 317% for short periods
+  # the maxium Memory usage was 74%
+  # the number of tasks autoscaled rarely, the queue time for requests did increase under
+  # load but too much. There were some spikes of 0.3 seconds with most of the time it
+  # stayed below 0.1 seconds
+  # To scale the cluster better I'm going to reduce the CPU reservation to 256
+  # because it is pretty cheap to scale up and improve performance it seems worthwhile
+  # The scaling rules also need to be adjust to match this change.
   AppTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -213,18 +232,11 @@ Resources:
       ContainerDefinitions:
       - Name: App
         Image: !Ref LaraDockerImage
-        # monitoring the CPU levels over 3 months with CPU set to 512 and 1 unicorn worker
-        # the average usage over 15min intervals maxed out at 42%
-        # the maxium usage occationally spiked to 200% but only for brief periods
-        # we are now going to try using 2 unicorn workers to see how the cpu usage changes
-        Cpu: "512"
+        Cpu: "256"
         PortMappings:
         - ContainerPort: '80'
         Command:
         - "./docker/prod/run.sh"
-        # monitoring the CPU levels over 3 months with memory set to 900 and 1 unicorn worker
-        # the maxium usage was 55% at which point it appears the task was killed off
-        # We are now going to try 2 unicorn workers to see how the memory and cpu responds
         Memory: "900"
         Essential: "true"
         LogConfiguration:
@@ -472,6 +484,20 @@ Resources:
       ToPort: '3306'
       SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
+  # 2019-03-20
+  # At ScaleUpAlarmThreshold:75 with 1 unicorn worker this rarely triggered a scale event
+  # even when the service was being used heavily. I'm going to try 70 with 2 unicorn
+  # workers for a while
+  #
+  # 2019-04-09
+  # At ScaleUpAlarmThreshold:70 with 2 unicorn workers this very rarely triggered a scale
+  # event. It was often running at CPUUtilization of 52% and seemed to be handling the load
+  # pretty well. There were a minimum of 3 worker tasks, so there was extra capacity
+  # that is probably why no autoscale event was triggered.
+  # I'm now decreasing the CPU reservation to 1/2 of what it was. So to keep
+  # the current scaling theshold the same it should be 140, but instead I'm going move the
+  # threshold to 80% and decrease the minimum number of tasks to 2 so we can see some more
+  # scaling
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -488,9 +514,7 @@ Resources:
         ScaleUpStepBoundary: '25'
         ScaleUpStepAdjustment1: '100'
         ScaleUpStepAdjustment2: '200'
-        # At 75 with 1 unicorn worker this rarely triggered a scale event even when the service was
-        # being used heavily. I'm going to try 70 with 2 unicorn workers for a while
-        ScaleUpAlarmThreshold: '70'
+        ScaleUpAlarmThreshold: '80'
         # this 2 minute evaluation period helps with an initial spike
         # when a new container is started, and it also helps the CPUUtilization start
         # to reflect the change in capacity. This is also the point of the Cooldown setting
@@ -509,7 +533,7 @@ Resources:
         ScaleDownAlarmEvaluationPeriods: '5'
         ScaleDownAlarmPeriod: '60'
 
-  # WorkerTask Notes from March 21:
+  # WorkerTask Notes from March 21, 2019:
   # looking over 3 months when the Cpu: 512, Memory: 900, and delayed_job_workers:1.
   # We had a max of max 40% CPU utilization with spikes higher during
   # deployments.
