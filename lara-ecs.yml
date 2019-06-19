@@ -784,6 +784,13 @@ Resources:
           Value: !Ref ModelJsonListURL
         - Name: LOGGER_URI
           Value: !Ref LoggerUri
+        - Name: REPORT_SERVICE_TOKEN
+          Value: !Ref ReportServiceToken
+        - Name: REPORT_SERVICE_URL
+          Value: !Ref ReportServiceURL
+        - Name: REPORT_SERVICE_SELF_URL
+          Value: !Sub 'https://${DomainName}'
+
 
   WorkerService:
     Type: AWS::ECS::Service
