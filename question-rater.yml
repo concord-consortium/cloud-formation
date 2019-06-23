@@ -26,9 +26,6 @@ Parameters:
   CRaterPassword:
     Type: String
     Description: Password for api
-  AzureQ2ApiToken:
-    Type: String
-    Description: Api token for Azure Question 2
   ApiGatewayMonthlyLimit:
     Type: String
     Description: Monthly limit of number of requests
@@ -53,7 +50,6 @@ Resources:
         Variables:
           C_RATER_USERNAME: !Ref CRaterUsername
           C_RATER_PASSWORD: !Ref CRaterPassword
-          AZURE_Q2_API_TOKEN: !Ref AzureQ2ApiToken
       Code:
         S3Bucket: concord-devops
         S3Key: !Sub "question-rater/${LambdaZipFilename}"
@@ -256,6 +252,7 @@ Resources:
       UsagePlanName: !Sub "question-rater-${Environment}"
 
   ApiGatewayKey:
+    DependsOn: ApiGatewayStage
     Type: AWS::ApiGateway::ApiKey
     Properties:
       Enabled: true
