@@ -83,7 +83,7 @@ Resources:
       # DBSnapshotIdentifier:
       DBSubnetGroupName: !Ref "DBSubnetGroup"
       Engine: postgres
-      EngineVersion: "10.6"
+      EngineVersion: "10.9"
       # Iops:
       # KmsKeyId:
       # LicenseModel:
@@ -97,7 +97,7 @@ Resources:
       PubliclyAccessible: true
       # SourceDBInstanceIdentifier:
       StorageEncrypted: true
-      StorageType: standard
+      StorageType: gp2
       VPCSecurityGroups:
         - !Ref DBVPCSecurityGroup
       Tags:
