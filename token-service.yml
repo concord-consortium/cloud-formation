@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Token service resources
+
+Parameters:
+  Environment:
+    Type: String
+    Description: Lowercase name of environment (either staging or production)
+    Default: staging
+    AllowedValues: [staging, production]
+  ExistingBucketName:
+    Type: String
+    Description: Name of existing bucket were files will be stored
+    Default: models-resources
+
+Resources:
+  TokenServiceUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub "token-service-${Environment}"
+  TokenServiceKey:
+    Type: AWS::IAM::AccessKey
+    DependsOn: TokenServiceUser
+    Properties:
+      UserName: !Sub "token-service-${Environment}"
+      Serial: 1
+      Status: Active
+  TokenServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "token-service-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: !GetAtt [TokenServiceUser, Arn]
+          Action:
+          - sts:AssumeRole
+      Description: !Sub "All needed S3 actions on token-service-${Environment}"
+      MaxSessionDuration: 3600
+  TokenServicePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "token-service-${Environment}"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:ListBucket
+          - s3:ListBucketVersions
+          Resource:
+          - !Sub "arn:aws:s3:::${ExistingBucketName}"
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          - s3:GetObject
+          - s3:GetObjectVersion
+          Resource: !Sub "arn:aws:s3:::${ExistingBucketName}/*"
+      Roles:
+        - !Ref TokenServiceRole
+
+Outputs:
+  AccessKey:
+    Description: Access key of the token-service user
+    Value: !Ref TokenServiceKey
+  SecretKey:
+    Description: Secret key of the token-service user
+    Value: !GetAtt [TokenServiceKey, SecretAccessKey]
+  RoleArn:
+    Description: Arn of token service role
+    Value: !GetAtt [TokenServiceRole, Arn]
