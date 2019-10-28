@@ -186,6 +186,7 @@ Resources:
       VpcConfig:
         SecurityGroupIds:
           - !Ref DBVPCSecurityGroup
+          # - !Ref KinesisToRDSLambdaFunctionSecurityGroup
         SubnetIds: !Ref "DbSubnetIds"
       Environment:
         Variables:
@@ -198,6 +199,17 @@ Resources:
           Value: dmartin
         - Key: Environment
           Value: !Ref "Environment"
+
+  KinesisToRDSLambdaFunctionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Kinesis to RDS Lambda Function security group
+      VpcId: !Ref "VpcId"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref DBVPCSecurityGroup
 
   LambdaIamRole:
     Type: AWS::IAM::Role
@@ -432,7 +444,7 @@ Resources:
           Name: ApiName
           Value: !Sub "log-ingester-${Environment}"
       MetricName: "5XXError"
-      Namespace: AWS/Api­Gateway
+      Namespace: AWS/ApiGateway
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 1
       Period: 300
@@ -469,3 +481,6 @@ Outputs:
   RdsDatabaseUrl:
     Description: Connection string for Heroku log-puller
     Value: !Sub "postgres://${DbUser}:${DbPassword}@${DBInstance.Endpoint.Address}/log_manager"
+  RdsSecurityGroup:
+    Description: RDS VPC security group
+    Value: !Ref DBVPCSecurityGroup
