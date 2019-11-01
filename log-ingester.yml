@@ -48,16 +48,27 @@ Parameters:
 
   ApiGatewayBasePath:
     Type: String
-    Description: Base path for API at https://api.concord.org/ (staging should use log-staging)
+    Description: Base path for API at https://api.concord.org/ or https://api.concordqa.org/
     Default: log
+
+  ApiDomain:
+    Type: String
+    Description: The domain of the api
+    Default: api.concordqa.org
+    AllowedValues: [api.concord.org, api.concordqa.org]
 
   AlarmEmail:
     Type: String
-    Description: Email address to notify when the log ingester has triggered an alarm
+    Description: Email address to notify when the log ingester has triggered an alarm and for tags
+
+  LambdaZipBucket:
+    Type: String
+    Description: S3 bucket containing /log-ingester folder containing LambdaZipFilename
+    Default: concord-devops
 
   LambdaZipFilename:
     Type: String
-    Description: Filename of lambda .zip file in s3://concord-devops/log-ingester
+    Description: Filename of lambda .zip file in log-ingester folder of the LambdaZipBucket
     Default: kinesis-to-rds.zip
 
 
@@ -102,7 +113,7 @@ Resources:
         - !Ref DBVPCSecurityGroup
       Tags:
         - Key: Contact
-          Value: dmartin
+          Value: !Ref AlarmEmail
         - Key: Environment
           Value: !Ref "Environment"
   # no changes to parameters, just here in case we need to add any
@@ -113,7 +124,7 @@ Resources:
       Family: postgres10
       Tags:
         - Key: Contact
-          Value: dmartin
+          Value: !Ref AlarmEmail
         - Key: Environment
           Value: !Ref "Environment"
   DBVPCSecurityGroup:
@@ -127,13 +138,12 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Contact
-          Value: dmartin
+          Value: !Ref AlarmEmail
         - Key: Environment
           Value: !Ref "Environment"
   DBSubnetGroup:
@@ -144,7 +154,7 @@ Resources:
       SubnetIds: !Ref "DbSubnetIds"
       Tags:
         - Key: Contact
-          Value: dmartin
+          Value: !Ref AlarmEmail
         - Key: Environment
           Value: !Ref "Environment"
 
@@ -185,31 +195,36 @@ Resources:
       Timeout: 60
       VpcConfig:
         SecurityGroupIds:
-          - !Ref DBVPCSecurityGroup
-          # - !Ref KinesisToRDSLambdaFunctionSecurityGroup
+          - !Ref KinesisToRDSLambdaFunctionSecurityGroup
         SubnetIds: !Ref "DbSubnetIds"
       Environment:
         Variables:
           RDS_DATABASE_URL: !Sub "postgres://${DbUser}:${DbPassword}@${DBInstance.Endpoint.Address}/log_manager"
       Code:
-        S3Bucket: concord-devops
+        S3Bucket: !Ref LambdaZipBucket
         S3Key: !Sub "log-ingester/${LambdaZipFilename}"
       Tags:
         - Key: Contact
-          Value: dmartin
+          Value: !Ref AlarmEmail
         - Key: Environment
           Value: !Ref "Environment"
 
   KinesisToRDSLambdaFunctionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
+      GroupName: !Sub "log-ingester-${Environment}-kinesis-to-rds-lambda"
       GroupDescription: Kinesis to RDS Lambda Function security group
       VpcId: !Ref "VpcId"
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          SourceSecurityGroupId: !Ref DBVPCSecurityGroup
+
+  KinesisToRDSLambdaFunctionDBIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Adds log ingester lambda to RDS security group
+      GroupId: !Ref DBVPCSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref KinesisToRDSLambdaFunctionSecurityGroup
 
   LambdaIamRole:
     Type: AWS::IAM::Role
@@ -418,7 +433,7 @@ Resources:
     DependsOn: ApiGatewayStage
     Properties:
       BasePath: !Ref ApiGatewayBasePath
-      DomainName: api.concord.org
+      DomainName: !Ref ApiDomain
       RestApiId: !Ref ApiGateway
       Stage: latest
 
@@ -477,7 +492,7 @@ Outputs:
     Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/latest/logs"
   NiceIngestionUrl:
     Description: Nice URL of the API gateway log ingester
-    Value: !Sub "https://api.concord.org/${ApiGatewayBasePath}/logs"
+    Value: !Sub "https://${ApiDomain}/${ApiGatewayBasePath}/logs"
   RdsDatabaseUrl:
     Description: Connection string for Heroku log-puller
     Value: !Sub "postgres://${DbUser}:${DbPassword}@${DBInstance.Endpoint.Address}/log_manager"

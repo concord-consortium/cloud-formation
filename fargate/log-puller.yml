@@ -8,6 +8,11 @@ Parameters:
     Default: fargate-public-network
     Description: The name of the parent Fargate networking stack that you created. Necessary
                  to locate and reference resources created by that stack.
+  LogIngesterStackName:
+    Type: String
+    Description: The name of the log ingester stack
+    Default: log-ingester-staging
+    AllowedValues: [log-ingester, log-ingester-staging]
   ServiceName:
     Type: String
     Default: log-puller
@@ -110,6 +115,7 @@ Resources:
           SecurityGroups:
             - Fn::ImportValue:
                 !Join [':', [!Ref 'StackName', 'FargateContainerSecurityGroup']]
+            - !Ref ServiceSecurityGroup
           Subnets:
             - Fn::ImportValue:
                 !Join [':', [!Ref 'StackName', 'PublicSubnetOne']]
@@ -120,6 +126,26 @@ Resources:
         - ContainerName: !Ref 'ServiceName'
           ContainerPort: !Ref 'ContainerPort'
           TargetGroupArn: !Ref 'TargetGroup'
+
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Log puller ECS service security group
+      VpcId:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'VPCId']]
+
+  ServiceDBIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Adds ECS service to RDS security group
+      GroupId:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'LogIngesterStackName', 'RdsSecurityGroup']]
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref ServiceSecurityGroup
 
   # A target group. This is used for keeping track of all the tasks, and
   # what IP addresses / port numbers they have. You can query it yourself,
