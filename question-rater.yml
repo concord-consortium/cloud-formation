@@ -210,7 +210,7 @@ Resources:
           Name: ApiName
           Value: !Sub "question-rater-${Environment}"
       MetricName: "5XXError"
-      Namespace: AWS/Api­Gateway
+      Namespace: AWS/ApiGateway
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 1
       Period: 300
