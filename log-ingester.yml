@@ -499,3 +499,5 @@ Outputs:
   RdsSecurityGroup:
     Description: RDS VPC security group
     Value: !Ref DBVPCSecurityGroup
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'RdsSecurityGroup' ] ]
