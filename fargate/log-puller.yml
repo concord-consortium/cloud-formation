@@ -12,7 +12,7 @@ Parameters:
     Type: String
     Description: The name of the log ingester stack
     Default: log-ingester-staging
-    AllowedValues: [log-ingester, log-ingester-staging]
+    AllowedValues: [log-ingester-production, log-ingester-staging]
   ServiceName:
     Type: String
     Default: log-puller
@@ -28,11 +28,11 @@ Parameters:
     Description: What port number the application inside the docker container is binding to
   ContainerCpu:
     Type: Number
-    Default: 256
+    Default: 512
     Description: How much CPU to give the container. 1024 is 1 CPU
   ContainerMemory:
     Type: Number
-    Default: 512
+    Default: 1024
     Description: How much memory in megabytes to give the container
   Path:
     Type: String
