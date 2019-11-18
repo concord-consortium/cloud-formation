@@ -94,7 +94,7 @@ Resources:
       # DBSnapshotIdentifier:
       DBSubnetGroupName: !Ref "DBSubnetGroup"
       Engine: postgres
-      EngineVersion: "10.9"
+      EngineVersion: "10.10"
       # Iops:
       # KmsKeyId:
       # LicenseModel:
