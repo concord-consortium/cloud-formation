@@ -69,6 +69,7 @@ Resources:
   # container to run, and what resource requirements it has.
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DependsOn: LogGroup
     Properties:
       Family: !Ref 'ServiceName'
       Cpu: !Ref 'ContainerCpu'
@@ -86,6 +87,12 @@ Resources:
           Image: !Ref 'ImageUrl'
           PortMappings:
             - ContainerPort: !Ref 'ContainerPort'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref LogGroup
+              awslogs-stream-prefix: ecs
           Environment:
             - Name: JWT_HMAC_SECRET
               Value: !Ref JwtHmacSecret
@@ -97,6 +104,11 @@ Resources:
               Value: !Ref LearnServer
             - Name: PORTAL_REPORT_URL
               Value: !Ref PortalReportUrl
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['', [/ecs/, !Ref 'ServiceName']]
 
   # The service. The service is a resource which allows you to run multiple
   # copies of a type of task, and gather up their logs and metrics, as well
