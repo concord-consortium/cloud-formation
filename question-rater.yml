@@ -131,7 +131,7 @@ Resources:
       MethodSettings:
         -
           DataTraceEnabled: true
-          HttpMethod: POST
+          HttpMethod: "*"
           LoggingLevel: INFO
           ResourcePath: "/*"
       RestApiId: !Ref ApiGateway
