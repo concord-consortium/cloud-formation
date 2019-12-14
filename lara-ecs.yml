@@ -1,24 +1,25 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: lara ecs stack
+
 Parameters:
   Environment:
     Type: String
     Default: qa
     AllowedValues: [qa, staging, production]
     Description: Enter staging or production. Default is qa.
-  SSLCertificateName:
+  DomainNameBase:
     Type: String
-    AllowedValues: [star.concord.org, star.staging.concord.org, star.concordqa.org]
-    Description: Certificates registered with AWS. Choose which one to use for the
-      load balancer
+    AllowedValues: [concord.org, staging.concord.org, concordqa.org]
+    Description: The base of the domain name. The host name is added to this to make the
+      full domain name. The DomanNameBase is also used to find a wildcard SSL certificate.
   DatabaseSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
     Description: Select security group of the RDS database. This security group will
       be modified to allow access by the EC2 instances in this stack
-  DomainName:
+  HostName:
     Type: String
-    Description: The DNS name that will be created or updated to point at the load
-      balancer
+    Description: The first part of the domain name the DomainNameBase will be added to
+      this. So the final domain name is [HostName].[DomainNameBase]
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
 
@@ -140,13 +141,92 @@ Conditions:
   AddLearnPortal: !Not [!Equals [!Ref LearnPortalSecret, ""]]
 
 Resources:
+  LARADNS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        # need to get this from the cloudfront distribution
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        # static zone id from documentation
+        HostedZoneId: Z2FDTNDATAQYW2
+      HostedZoneId: !Ref 'HostedZoneId'
+      Name: !Sub '${HostName}.${DomainNameBase}'
+      Type: A
+      Weight: 100
+      SetIdentifier: !Ref AWS::StackName
+
+  # Putting CloudFront in front of LARA so we can proxy things like the sensor-interactive
+  # in theory this could also be used if we wanted to put our assets in an S3 bucket so
+  # the server wasn't hit to serve them
+  CloudFrontDistribution:
+    Type: "AWS::CloudFront::Distribution"
+    Properties:
+      DistributionConfig:
+        Aliases:
+        - !Sub '${HostName}.${DomainNameBase}'
+        CacheBehaviors:
+        - AllowedMethods:
+          - GET
+          - HEAD
+          Compress: false
+          ForwardedValues:
+            QueryString: false
+          PathPattern: 'sensor-interactive/*'
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+        Comment: !Sub 'Cloudfront Distribution for ${HostName}.${DomainNameBase} managed by CloudFormation'
+        DefaultCacheBehavior:
+          AllowedMethods:
+          - HEAD
+          - GET
+          - OPTIONS
+          - PUT
+          - POST
+          - PATCH
+          - DELETE
+          # Not sure
+          Compress: false
+          ForwardedValues:
+            QueryString: true
+            Cookies:
+              Forward: all
+            # It isn't clear from the documentation but it seems like this is the right
+            # way to say that we want to forward all headers
+            Headers:
+            - '*'
+          TargetOriginId: LARAOrigin
+          ViewerProtocolPolicy: allow-all
+        Enabled: true
+        HttpVersion: 'http2'
+        # Should fix this
+        # Logging:
+        #   Bucket: cc-cloudfront-logs.s3.amazonaws.com
+        #   IncludeCookies: false
+        #   Prefix: !Ref 'DomainName'
+        PriceClass: PriceClass_All
+        Origins:
+        - Id: LARAOrigin
+          DomainName: !Sub '${HostName}-lb.${DomainNameBase}'
+          CustomOriginConfig:
+            OriginProtocolPolicy: match-viewer
+            OriginReadTimeout: 180
+        - Id: S3Origin
+          DomainName: models-resources.s3-website-us-east-1.amazonaws.com
+          # We don't want an origin path we just want to forward the request through to models-resources
+          # since we are going limit the request to just the paths /sensor-interactive
+          CustomOriginConfig:
+            OriginProtocolPolicy: http-only
+        ViewerCertificate:
+          AcmCertificateArn: !FindInMap [SSLCertificateMap, !Ref 'DomainNameBase', Id]
+          SslSupportMethod: sni-only
+
   AppLoadBalancerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub "${NestedTemplatesFolder}/ecs-load-balancer.yml"
       Parameters:
         LoadBalancerIdleTimeout: '180'
-        DomainName: !Ref 'DomainName'
+        DomainName: !Sub '${HostName}-lb.${DomainNameBase}'
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
         VpcId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterVpcId' }
         Subnets: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSubnets' }
@@ -156,7 +236,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       Certificates:
-      - CertificateArn: !FindInMap [SSLCertificateMap, !Ref 'SSLCertificateName', Id]
+      - CertificateArn: !FindInMap [SSLCertificateMap, !Ref 'DomainNameBase', Id]
       DefaultActions:
       - TargetGroupArn: !Ref AppTargetGroup
         Type: forward
@@ -479,7 +559,7 @@ Resources:
         - Name: REPORT_SERVICE_URL
           Value: !Ref ReportServiceURL
         - Name: REPORT_SERVICE_SELF_URL
-          Value: !Sub 'https://${DomainName}'
+          Value: !Sub 'https://${HostName}.${DomainNameBase}'
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -789,7 +869,7 @@ Resources:
         - Name: REPORT_SERVICE_URL
           Value: !Ref ReportServiceURL
         - Name: REPORT_SERVICE_SELF_URL
-          Value: !Sub 'https://${DomainName}'
+          Value: !Sub 'https://${HostName}.${DomainNameBase}'
 
 
   WorkerService:
@@ -833,11 +913,11 @@ Resources:
 
 Mappings:
   SSLCertificateMap:
-    star.concord.org:
+    concord.org:
       Id: arn:aws:acm:us-east-1:612297603577:certificate/2b62511e-ccc8-434b-ba6c-a8c33bbd509e
-    star.staging.concord.org:
+    staging.concord.org:
       Id: arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560
-    star.concordqa.org:
+    concordqa.org:
       Id: arn:aws:acm:us-east-1:816253370536:certificate/7b8bb00e-7aa4-4b9f-a722-f49c828af83c
 Metadata:
   AWS::CloudFormation::Interface:
@@ -875,12 +955,12 @@ Metadata:
     - Label:
         default: Infrastructure
       Parameters:
-      - ClusterStackiName
+      - ClusterStackName
       - CloudWatchLogGroup
       - DatabaseSecurityGroupId
-      - DomainName
+      - HostName
+      - DomainNameBase
       - HostedZoneId
       - Environment
       - MaxNumLaraWebTasks
       - MinNumLaraWebTasks
-      - SSLCertificateName
