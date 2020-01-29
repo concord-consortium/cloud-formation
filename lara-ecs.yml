@@ -130,6 +130,11 @@ Parameters:
     Type: String
     Description: URL to the report service for importing activity structure
     Default: https://us-central1-report-service-dev.cloudfunctions.net/api
+  ShutterbugURI:
+    Type: String
+    Description: URI for the shutterbug service
+    Default: https://fh1fzvhx93.execute-api.us-east-1.amazonaws.com/production/make-snapshot
+
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
   AddITSITest: !Not [!Equals [!Ref ITSITestSecret, ""]]
@@ -560,6 +565,8 @@ Resources:
           Value: !Ref ReportServiceURL
         - Name: REPORT_SERVICE_SELF_URL
           Value: !Sub 'https://${HostName}.${DomainNameBase}'
+        - Name: SHUTTERBUG_URI
+          Value: !Ref ShutterbugURI
 
   LogGroup:
     Type: AWS::Logs::LogGroup
