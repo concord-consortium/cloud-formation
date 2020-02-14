@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: cloudfront and domain for old http interactives
+Resources:
+  DNS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        # need to get this from the cloudfront distribution
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        # static zone id from documentation
+        HostedZoneId: Z2FDTNDATAQYW2
+      HostedZoneName: concord.org.
+      Name: no-ssl-interactives.concord.org
+      Type: A
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+        - no-ssl-interactives.concord.org
+        CacheBehaviors:
+        # this is just an example
+        - AllowedMethods:
+          - GET
+          - HEAD
+          Compress: false
+          ForwardedValues:
+            QueryString: false
+          PathPattern: 'eoc/*'
+          TargetOriginId: EarthGuide
+          ViewerProtocolPolicy: redirect-to-https
+        - AllowedMethods:
+          - GET
+          - HEAD
+          Compress: false
+          ForwardedValues:
+            QueryString: false
+          PathPattern: 'hawaii/*'
+          TargetOriginId: GeoCornell
+          ViewerProtocolPolicy: redirect-to-https
+        Comment: Cloudfront Distribution for old http interactives
+        # FIXME: I'm not sure what to use here for the default
+        # ideally it would be some kind of static error page
+        DefaultCacheBehavior:
+          AllowedMethods:
+          - GET
+          - HEAD
+          Compress: false
+          ForwardedValues:
+            QueryString: true
+            Cookies:
+              Forward: none
+            # support CORS Requests to the resources
+            Headers:
+            - Origin
+            - Access-Control-Request-Headers
+            - Access-Control-Request-Method
+          # pick a random origin for now
+          TargetOriginId: GeoCornell
+          ViewerProtocolPolicy: redirect-to-https
+        Enabled: true
+        HttpVersion: http2
+        Logging:
+          Bucket: cc-cloudfront-logs.s3.amazonaws.com
+          IncludeCookies: false
+          Prefix: project-resources
+        PriceClass: PriceClass_All
+        Origins:
+        - DomainName: earthguide.ucsd.edu
+          Id: EarthGuide
+          CustomOriginConfig:
+            OriginProtocolPolicy: http-only
+        - DomainName: www.geo.cornell.edu
+          Id: GeoCornell
+          CustomOriginConfig:
+            OriginProtocolPolicy: http-only
+        ViewerCertificate:
+          AcmCertificateArn: arn:aws:acm:us-east-1:612297603577:certificate/2b62511e-ccc8-434b-ba6c-a8c33bbd509e
+          SslSupportMethod: sni-only
