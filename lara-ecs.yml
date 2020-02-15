@@ -134,6 +134,14 @@ Parameters:
     Type: String
     Description: URI for the shutterbug service
     Default: https://fh1fzvhx93.execute-api.us-east-1.amazonaws.com/production
+  CreateLoadBalancerHTTPRedirect:
+    Type: String
+    Description: create a the load balancer listener to redirect http traffic. This is
+      temporary. The stack can't be created when an existing port 80 listener is defined.
+      And the previous version of this stack has one defined in a nested template. This
+      nested template doesn't get cleaned up until after the new template tries to create
+      the new port 80 listener.
+    AllowedValues: ['true', 'false']
 
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
@@ -144,6 +152,7 @@ Conditions:
   AddHASPortal: !Not [!Equals [!Ref HASPortalSecret, ""]]
   AddITSIPortal: !Not [!Equals [!Ref ITSIPortalSecret, ""]]
   AddLearnPortal: !Not [!Equals [!Ref LearnPortalSecret, ""]]
+  CreateLoadBalancerHTTPRedirectCond: !Equals [!Ref CreateLoadBalancerHTTPRedirect, 'true']
 
 Resources:
   LARADNS:
@@ -200,7 +209,7 @@ Resources:
             Headers:
             - '*'
           TargetOriginId: LARAOrigin
-          ViewerProtocolPolicy: allow-all
+          ViewerProtocolPolicy: redirect-to-https
         Enabled: true
         HttpVersion: 'http2'
         # Should fix this
@@ -213,7 +222,7 @@ Resources:
         - Id: LARAOrigin
           DomainName: !Sub '${HostName}-lb.${DomainNameBase}'
           CustomOriginConfig:
-            OriginProtocolPolicy: match-viewer
+            OriginProtocolPolicy: https-only
             OriginReadTimeout: 180
         - Id: S3Origin
           DomainName: models-resources.s3-website-us-east-1.amazonaws.com
@@ -248,12 +257,22 @@ Resources:
       LoadBalancerArn: !GetAtt AppLoadBalancerStack.Outputs.LoadBalancer
       Port: '443'
       Protocol: HTTPS
+
+  # Add a http redirect to the load balancer incase some access it directly
+  # instead of through cloud front
   AppListener80:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: CreateLoadBalancerHTTPRedirectCond
     Properties:
       DefaultActions:
-      - TargetGroupArn: !Ref AppTargetGroup
-        Type: forward
+      - Type: redirect
+        RedirectConfig:
+          Host: '#{host}'
+          Path: '/#{path}'
+          Port: '443'
+          Protocol: 'HTTPS'
+          Query: '#{query}'
+          StatusCode: HTTP_301
       LoadBalancerArn: !GetAtt AppLoadBalancerStack.Outputs.LoadBalancer
       Port: '80'
       Protocol: HTTP
@@ -262,7 +281,6 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn:
     - AppListener443
-    - AppListener80
     Properties:
       Role: ecsServiceRole
       TaskDefinition: !Ref AppTaskDefinition
