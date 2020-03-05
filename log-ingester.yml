@@ -86,6 +86,7 @@ Resources:
       AutoMinorVersionUpgrade: true
       # AvailabilityZone:
       # BackupRetentionPeriod:
+      CACertificateIdentifier: "rds-ca-2019"
       # CharacterSetName:
       DBInstanceIdentifier: !Sub "log-ingester-${Environment}"
       DBName: log_manager
