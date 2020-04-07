@@ -344,3 +344,20 @@ Outputs:
     Value: !Ref 'FargateContainerSecurityGroup'
     Export:
       Name: !Join [ ':', [ !Ref 'AWS::StackName', 'FargateContainerSecurityGroup' ] ]
+  HostedZoneName:
+    Description: The HostedZoneName parameter
+    Value: !Ref HostedZoneName
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'HostedZoneName' ] ]
+  LoadBalancerDNSName:
+    Description: The PublicLoadBalancer DNSName
+    Value: !GetAtt 'PublicLoadBalancer.DNSName'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'LoadBalancerDNSName' ] ]
+  LoadBalancerCanonicalHostedZoneID:
+    Description: The PublicLoadBalancer CanonicalHostedZoneID
+    Value: !GetAtt 'PublicLoadBalancer.CanonicalHostedZoneID'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'LoadBalancerCanonicalHostedZoneID' ] ]
+
+

@@ -39,10 +39,16 @@ Parameters:
     Default: "/log-puller*"
     Description: A path on the public load balancer that this service
                  should be connected to. This should NOT be *.
-  Priority:
+  PriorityForPath:
     Type: Number
     Default: 1
-    Description: The priority for the routing rule added to the load balancer.
+    Description: The priority for the path routing rule added to the load balancer.
+                 This only applies if your have multiple services which have been
+                 assigned to different paths on the load balancer.
+  PriorityForHostname:
+    Type: Number
+    Default: 2
+    Description: The priority for the hostname routing rule added to the load balancer.
                  This only applies if your have multiple services which have been
                  assigned to different paths on the load balancer.
   DesiredCount:
@@ -55,6 +61,10 @@ Parameters:
   JwtHmacSecret:
     Type: String
     Description: Shared HMAC secret with portal
+  Subdomain:
+    Type: String
+    Default: log-puller
+    Description: The sub-domain to add to route (not apps) Route53 DNS record
 
 Resources:
 
@@ -108,8 +118,10 @@ Resources:
   Service:
     Type: AWS::ECS::Service
     DependsOn:
-      - LoadBalancerRule80
-      - LoadBalancerRule443
+      - LoadBalancerRule80Path
+      - LoadBalancerRule443Path
+      - LoadBalancerRule80Host
+      - LoadBalancerRule443Host
     Properties:
       ServiceName: !Ref 'ServiceName'
       Cluster:
@@ -180,7 +192,7 @@ Resources:
         Fn::ImportValue:
           !Join [':', [!Ref 'StackName', 'VPCId']]
 
-  LoadBalancerRule80:
+  LoadBalancerRule80Path:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
@@ -192,8 +204,8 @@ Resources:
       ListenerArn:
         Fn::ImportValue:
           !Join [':', [!Ref 'StackName', 'PublicListener80']]
-      Priority: !Ref 'Priority'
-  LoadBalancerRule443:
+      Priority: !Ref 'PriorityForPath'
+  LoadBalancerRule443Path:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
@@ -205,6 +217,64 @@ Resources:
       ListenerArn:
         Fn::ImportValue:
           !Join [':', [!Ref 'StackName', 'PublicListener443']]
-      Priority: !Ref 'Priority'
+      Priority: !Ref 'PriorityForPath'
+
+  LoadBalancerRule80Host:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      Conditions:
+        - Field: host-header
+          Values:
+            - Fn::Join:
+                - ''
+                - - !Ref Subdomain
+                  - '.'
+                  - Fn::ImportValue: !Join [':', [!Ref 'StackName', 'HostedZoneName']]
+      ListenerArn:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'PublicListener80']]
+      Priority: !Ref 'PriorityForHostname'
+  LoadBalancerRule443Host:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      Conditions:
+        - Field: host-header
+          Values:
+            - Fn::Join:
+                - ''
+                - - !Ref Subdomain
+                  - '.'
+                  - Fn::ImportValue: !Join [':', [!Ref 'StackName', 'HostedZoneName']]
+      ListenerArn:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'PublicListener443']]
+      Priority: !Ref 'PriorityForHostname'
+
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName:
+        Fn::Join:
+          - ''
+          - - Fn::ImportValue: !Join [':', [!Ref 'StackName', 'HostedZoneName']]
+            - '.'
+      Name:
+        Fn::Join:
+          - ''
+          - - !Ref Subdomain
+            - '.'
+            - Fn::ImportValue: !Join [':', [!Ref 'StackName', 'HostedZoneName']]
+      Type: A
+      AliasTarget:
+        DNSName:
+          Fn::ImportValue: !Join [':', [!Ref 'StackName', 'LoadBalancerDNSName']]
+        HostedZoneId:
+          Fn::ImportValue: !Join [':', [!Ref 'StackName', 'LoadBalancerCanonicalHostedZoneID']]
 
 
