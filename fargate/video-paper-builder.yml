@@ -1,0 +1,417 @@
+# adapted from https://github.com/nathanpeck/aws-cloudformation-fargate/
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy Video Paper Builder on AWS Fargate, hosted in a public subnet, and accessible via a public load balancer.
+Parameters:
+  StackName:
+    Type: String
+    Default: fargate-public-network
+    Description: The name of the parent Fargate networking stack that you created. Necessary
+                 to locate and reference resources created by that stack.
+  ServiceName:
+    Type: String
+    Default: video-paper-builder
+    Description: A name for the service
+  ImageUrl:
+    Type: String
+    Default: concordconsortium/video-paper-builder
+    Description: The url of a docker image that contains the application process that
+                 will handle the traffic for this service
+  ContainerPort:
+    Type: Number
+    Default: 80
+    Description: What port number the application inside the docker container is binding to
+  ContainerCpu:
+    Type: Number
+    Default: 512
+    Description: How much CPU to give the container. 1024 is 1 CPU
+  ContainerMemory:
+    Type: Number
+    Default: 1024
+    Description: How much memory in megabytes to give the container
+  Path:
+    Type: String
+    Default: "/video-paper-builder*"
+    Description: A path on the public load balancer that this service
+                 should be connected to. This should NOT be *.
+  PriorityForPath:
+    Type: Number
+    Default: 1
+    Description: The priority for the path routing rule added to the load balancer.
+                 This only applies if your have multiple services which have been
+                 assigned to different paths on the load balancer.
+  PriorityForHostname:
+    Type: Number
+    Default: 2
+    Description: The priority for the hostname routing rule added to the load balancer.
+                 This only applies if your have multiple services which have been
+                 assigned to different paths on the load balancer.
+  DesiredCount:
+    Type: Number
+    Default: 2
+    Description: How many copies of the service task to run
+  Subdomain:
+    Type: String
+    Default: vpb
+    Description: The sub-domain to add to route (not apps) Route53 DNS record
+  AwsAccessKey:
+    Type: String
+    Description: AWS Access Key
+  AwsSecretAccessKey:
+    Type: String
+    Description: AWS Secret Access Key
+  AwsBucket:
+    Type: String
+    Default: etranscode.concord.org
+    Description: AWS Bucket
+  AwsRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS Region
+  AwsPipelineId:
+    Type: String
+    Default: 1453995413699-u833ir
+    Description: AWS Transcoder Pipeline Id
+  RdsDbName:
+    Type: String
+    Default: video_paper_builder_prod
+    Description: RDS Database Name
+  RdsUsername:
+    Type: String
+    Description: RDS User Name
+    Default: master
+    MinLength: 1
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9]*$"
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+  RdsPassword:
+    Type: String
+    NoEcho: true
+    Description: RDS Password
+    MinLength: 1
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9]*$"
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+  RdsSize:
+    Type: String
+    Description: Database size in GB
+    Default: "20"
+    MinLength: 1
+    AllowedPattern: "^[0-9]+$"
+    ConstraintDescription: Must be an integer
+  DeviseSecretKey:
+    Type: String
+    Description: Devise Secret Key
+  RailsSecretKeyBase:
+    Type: String
+    Description: Rails Secret Key Base
+  SesKey:
+    Type: String
+    Description: AWS SES Key
+  SesSecret:
+    Type: String
+    Description: AWS SES Secret
+  MailerHostname:
+    Type: String
+    Description: Hostname to use for links to site in emails
+  AllowedHosts:
+    Type: String
+    Description: The allowed hostnames to serve the application (space delimited)
+  SchoologyKey:
+    Type: String
+    Description: The Schoology consumer key
+  SchoologySecret:
+    Type: String
+    Description: The Schoology consumer secret
+
+Resources:
+
+  # database setup
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: !Ref "RdsSize"
+      DBInstanceClass: db.t2.small
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: true
+      # AvailabilityZone:
+      # BackupRetentionPeriod:
+      CACertificateIdentifier: "rds-ca-2019"
+      # CharacterSetName:
+      DBInstanceIdentifier: video-paper-builder
+      DBName: !Ref RdsDbName
+      # DBParameterGroupName:
+      # DBSecurityGroups:
+      # DBSnapshotIdentifier:
+      DBSubnetGroupName: !Ref "DBSubnetGroup"
+      Engine: mysql
+      EngineVersion: "5.6"
+      # Iops:
+      # KmsKeyId:
+      # LicenseModel:
+      MasterUsername: !Ref "RdsUsername"
+      MasterUserPassword: !Ref "RdsPassword"
+      MultiAZ: true
+      # OptionGroupName:
+      Port: "3306"
+      # PreferredBackupWindow:
+      # PreferredMaintenanceWindow:
+      PubliclyAccessible: true
+      # SourceDBInstanceIdentifier:
+      StorageEncrypted: true
+      StorageType: gp2
+      VPCSecurityGroups:
+        - !Ref DBVPCSecurityGroup
+  DBVPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: video-paper-builder
+      GroupDescription: VPC security group for video-paper-builder database
+      VpcId:
+        Fn::ImportValue:
+            !Join [':', [!Ref 'StackName', 'VPCId']]
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: video-paper-builder
+      DBSubnetGroupDescription: Subnet group for video-paper-builder
+      SubnetIds:
+        - Fn::ImportValue:
+            !Join [':', [!Ref 'StackName', 'PublicSubnetOne']]
+        - Fn::ImportValue:
+            !Join [':', [!Ref 'StackName', 'PublicSubnetTwo']]
+
+  # The task definition. This is a simple metadata description of what
+  # container to run, and what resource requirements it has.
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - LogGroup
+      - DBInstance
+    Properties:
+      Family: !Ref 'ServiceName'
+      Cpu: !Ref 'ContainerCpu'
+      Memory: !Ref 'ContainerMemory'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'ECSTaskExecutionRole']]
+      ContainerDefinitions:
+        - Name: !Ref 'ServiceName'
+          Cpu: !Ref 'ContainerCpu'
+          Memory: !Ref 'ContainerMemory'
+          Image: !Ref 'ImageUrl'
+          PortMappings:
+            - ContainerPort: !Ref 'ContainerPort'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref LogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: DEVISE_SECRET_KEY
+              Value: !Ref DeviseSecretKey
+            - Name: SECRET_KEY_BASE
+              Value: !Ref RailsSecretKeyBase
+            - Name: ACCESS_KEY_ID
+              Value: !Ref AwsAccessKey
+            - Name: SECRET_ACCESS_KEY
+              Value: !Ref AwsSecretAccessKey
+            - Name: S3_BUCKET
+              Value: !Ref AwsBucket
+            - Name: S3_REGION
+              Value: !Ref AwsRegion
+            - Name: PIPELINE_ID
+              Value: !Ref AwsPipelineId
+            - Name: RDS_DB_NAME
+              Value: !Ref RdsDbName
+            - Name: RDS_USERNAME
+              Value: !Ref RdsUsername
+            - Name: RDS_PASSWORD
+              Value: !Ref RdsPassword
+            - Name: RDS_HOSTNAME
+              Value: !GetAtt DBInstance.Endpoint.Address
+            - Name: RDS_PORT
+              Value: !GetAtt DBInstance.Endpoint.Port
+            - Name: SES_KEY
+              Value: !Ref SesKey
+            - Name: SES_SECRET
+              Value: !Ref SesSecret
+            - Name: MAILER_HOSTNAME
+              Value: !Ref MailerHostname
+            - Name: SCHOOLOGY_CONSUMER_KEY
+              Value: !Ref SchoologyKey
+            - Name: SCHOOLOGY_CONSUMER_SECRET
+              Value: !Ref SchoologySecret
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['', [/ecs/, !Ref 'ServiceName']]
+
+  # The service. The service is a resource which allows you to run multiple
+  # copies of a type of task, and gather up their logs and metrics, as well
+  # as monitor the number of running tasks and replace any that have crashed
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - LoadBalancerRule80Path
+      - LoadBalancerRule443Path
+      - LoadBalancerRule80Host
+      - LoadBalancerRule443Host
+    Properties:
+      ServiceName: !Ref 'ServiceName'
+      Cluster:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'ClusterName']]
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: !Ref 'DesiredCount'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - Fn::ImportValue:
+                !Join [':', [!Ref 'StackName', 'FargateContainerSecurityGroup']]
+            - !Ref ServiceSecurityGroup
+          Subnets:
+            - Fn::ImportValue:
+                !Join [':', [!Ref 'StackName', 'PublicSubnetOne']]
+            - Fn::ImportValue:
+                !Join [':', [!Ref 'StackName', 'PublicSubnetTwo']]
+      TaskDefinition: !Ref 'TaskDefinition'
+      LoadBalancers:
+        - ContainerName: !Ref 'ServiceName'
+          ContainerPort: !Ref 'ContainerPort'
+          TargetGroupArn: !Ref 'TargetGroup'
+
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Video Paper Builder ECS service security group
+      VpcId:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'VPCId']]
+
+  ServiceDBIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Adds ECS service to RDS security group
+      GroupId: !Ref DBVPCSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !Ref ServiceSecurityGroup
+
+  # A target group. This is used for keeping track of all the tasks, and
+  # what IP addresses / port numbers they have. You can query it yourself,
+  # to use the addresses yourself, but most often this target group is just
+  # connected to an application load balancer, or network load balancer, so
+  # it can automatically distribute traffic across all the targets.
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetType: ip
+      Name: !Ref 'ServiceName'
+      Port: !Ref 'ContainerPort'
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      VpcId:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'VPCId']]
+
+  LoadBalancerRule80Path:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      Conditions:
+        - Field: path-pattern
+          Values: [!Ref 'Path']
+      ListenerArn:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'PublicListener80']]
+      Priority: !Ref 'PriorityForPath'
+  LoadBalancerRule443Path:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      Conditions:
+        - Field: path-pattern
+          Values: [!Ref 'Path']
+      ListenerArn:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'PublicListener443']]
+      Priority: !Ref 'PriorityForPath'
+
+  LoadBalancerRule80Host:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      Conditions:
+        - Field: host-header
+          Values:
+            - Fn::Join:
+                - ''
+                - - !Ref Subdomain
+                  - '.'
+                  - Fn::ImportValue: !Join [':', [!Ref 'StackName', 'HostedZoneName']]
+      ListenerArn:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'PublicListener80']]
+      Priority: !Ref 'PriorityForHostname'
+  LoadBalancerRule443Host:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      Conditions:
+        - Field: host-header
+          Values:
+            - Fn::Join:
+                - ''
+                - - !Ref Subdomain
+                  - '.'
+                  - Fn::ImportValue: !Join [':', [!Ref 'StackName', 'HostedZoneName']]
+      ListenerArn:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'PublicListener443']]
+      Priority: !Ref 'PriorityForHostname'
+
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName:
+        Fn::Join:
+          - ''
+          - - Fn::ImportValue: !Join [':', [!Ref 'StackName', 'HostedZoneName']]
+            - '.'
+      Name:
+        Fn::Join:
+          - ''
+          - - !Ref Subdomain
+            - '.'
+            - Fn::ImportValue: !Join [':', [!Ref 'StackName', 'HostedZoneName']]
+      Type: A
+      AliasTarget:
+        DNSName:
+          Fn::ImportValue: !Join [':', [!Ref 'StackName', 'LoadBalancerDNSName']]
+        HostedZoneId:
+          Fn::ImportValue: !Join [':', [!Ref 'StackName', 'LoadBalancerCanonicalHostedZoneID']]
+
+
