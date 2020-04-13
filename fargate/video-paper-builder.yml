@@ -124,6 +124,7 @@ Parameters:
   DebugProduction:
     Type: String
     Default: false
+    AllowedValues: ["true", "false"]
     Description: Set to "true" to enable development style logging in production
 
 Resources:
