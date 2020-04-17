@@ -126,6 +126,11 @@ Parameters:
     Default: false
     AllowedValues: ["true", "false"]
     Description: Set to "true" to enable development style logging in production
+  CommonSharedPaperId:
+    Type: String
+    Description: The id of the common shared video paper
+    AllowedPattern: "^[0-9]+$"
+    ConstraintDescription: Must be an integer
 
 Resources:
 
@@ -252,6 +257,8 @@ Resources:
               Value: !Ref SchoologySecret
             - Name: DEBUG_PRODUCTION
               Value: !Ref DebugProduction
+            - Name: COMMON_SHARED_PAPER_ID
+              Value: !Ref CommonSharedPaperId
 
   LogGroup:
     Type: AWS::Logs::LogGroup
