@@ -422,6 +422,8 @@ Resources:
             - '.'
             - Fn::ImportValue: !Join [':', [!Ref 'StackName', 'HostedZoneName']]
       Type: A
+      Weight: 100
+      SetIdentifier: !Ref AWS::StackName
       AliasTarget:
         DNSName:
           Fn::ImportValue: !Join [':', [!Ref 'StackName', 'LoadBalancerDNSName']]
