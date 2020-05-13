@@ -1,6 +1,11 @@
 The create-stack.js script reads a create-config.yml file and then duplicates
 an "OriginalStack" modifying parameters declared in the create-config.yml
 
+In the case of the Portal and LARA these duplicate stacks do not have their
+own database unless you override the database parameters. Without their own
+database the copies are still useful to demonstrate new features that don't
+require migrations.
+
 ## AWS Credentials
 
 To run with concordqa, add a concord-qa profile to your credentials file
