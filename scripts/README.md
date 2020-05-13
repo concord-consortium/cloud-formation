@@ -9,11 +9,12 @@ require migrations.
 ## AWS Credentials
 
 To run with concordqa, add a concord-qa profile to your credentials file
-More info here https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/loading-node-credentials-shared.html
 
 Then set the environment variable
 
     AWS_PROFILE=concord-qa
+
+More info here https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/loading-node-credentials-shared.html
 
 ## Extra Steps for LARA
 
