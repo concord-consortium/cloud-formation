@@ -73,7 +73,7 @@ function filterBasedOnTemplate (templateBody, parameters) {
     throw new Error('Template has parameters that are not defined')
   }
 
-  // Filter out any paramters that we do have defined but are in the template
+  // Filter out any paramters that we do have defined but are not in the template
   console.log('=== Filtering parameters ===')
   return parameters.filter((param) => {
     if (validParameters.includes(param.ParameterKey)) {
