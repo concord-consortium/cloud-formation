@@ -1030,9 +1030,9 @@ Mappings:
     star.concord.org:
       Id: arn:aws:acm:us-east-1:612297603577:certificate/2b62511e-ccc8-434b-ba6c-a8c33bbd509e
     star.portal.concord.org:
-      Id: arn:aws:acm:us-east-1:612297603577:certificate/4341186a-57a0-4df1-8b61-05969febe57a
+      Id: arn:aws:acm:us-east-1:612297603577:certificate/b9b25c17-2083-40fd-a06d-70e09e8b7983
     star.staging.concord.org:
-      Id: arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560
+      Id: arn:aws:acm:us-east-1:612297603577:certificate/9c26b1e0-4ba7-4016-babc-34b3e13e8c21
 
 Metadata:
   AWS::CloudFormation::Interface:
