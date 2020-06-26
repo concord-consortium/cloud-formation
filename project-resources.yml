@@ -1,5 +1,8 @@
-# TODO: this does not enable CORS support
-# that should either be an option, or just done all of the time
+# If you update this file please also upload it here:
+# https://s3.amazonaws.com/concord-devops/cloud-formation/project-resources.yml
+# There is a stack quick create link in this google doc:
+# https://docs.google.com/document/d/13JR4GtghZI4z1PHXAYzxHkJ9-1b1n8QYnMyCthjrDuk/edit#
+# which refers to that uploaded file
 AWSTemplateFormatVersion: '2010-09-09'
 Description: portal ecs stack
 Parameters:
