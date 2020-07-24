@@ -28,6 +28,10 @@ Parameters:
     Description: The name of the CloudFormation stack that manages the cluster you want
       this application deployed in.  The cluster security group, Vpc, and subnets will be
       be used by resources in this stack.
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: List of VPC Subnet Ids, if this is set it will override the subnets
+      from the ClusterStackName. These subnets are used for by the application load balancer
 
   AddFakeAuthProvider:
     Type: String
@@ -157,6 +161,7 @@ Conditions:
   AddITSIPortal: !Not [!Equals [!Ref ITSIPortalSecret, ""]]
   AddLearnPortal: !Not [!Equals [!Ref LearnPortalSecret, ""]]
   CreateLoadBalancerHTTPRedirectCond: !Equals [!Ref CreateLoadBalancerHTTPRedirect, 'true']
+  HasSubnetIds: !Not [!Equals [!Join ["", !Ref SubnetIds], ""]]
 
 Resources:
   LARADNS:
@@ -247,7 +252,11 @@ Resources:
         DomainName: !Sub '${HostName}-lb.${DomainNameBase}'
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
         VpcId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterVpcId' }
-        Subnets: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSubnets' }
+        Subnets:
+          !If
+          - HasSubnetIds
+          - !Join [",", !Ref SubnetIds]
+          - { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSubnets' }
         HostedZoneId: !Ref 'HostedZoneId'
 
   AppListener443:
