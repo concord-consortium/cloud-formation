@@ -142,6 +142,10 @@ Parameters:
       nested template doesn't get cleaned up until after the new template tries to create
       the new port 80 listener.
     AllowedValues: ['true', 'false']
+  ActivityPlayerURL:
+    Type: String
+    Description: URL to the Activity Player
+    Default: https://activity-player.concord.org
 
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
@@ -585,6 +589,8 @@ Resources:
           Value: !Sub 'https://${HostName}.${DomainNameBase}'
         - Name: SHUTTERBUG_URI
           Value: !Ref ShutterbugURI
+        - Name: ACTIVITY_PLAYER_URL
+          Value: !Ref ActivityPlayerURL
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -895,6 +901,8 @@ Resources:
           Value: !Ref ReportServiceURL
         - Name: REPORT_SERVICE_SELF_URL
           Value: !Sub 'https://${HostName}.${DomainNameBase}'
+        - Name: ACTIVITY_PLAYER_URL
+          Value: !Ref ActivityPlayerURL
 
 
   WorkerService:
