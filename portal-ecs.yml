@@ -186,6 +186,10 @@ Parameters:
       nested template doesn't get cleaned up until after the new template tries to create
       the new port 80 listener.
     AllowedValues: ['true', 'false']
+  DeviseSecretKey:
+    Type: String
+    Description: this key is used to generate random tokens for password reset and
+      signup.
 
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
@@ -332,6 +336,8 @@ Resources:
           Value: !Ref DbPassword
         - Name: DB_USER
           Value: !Ref DbUserName
+        - Name: DEVISE_SECRET_KEY
+          Value: !Ref DeviseSecretKey
         - Name: HELP_EMAIL
           Value: !Ref HelpEmail
         - Name: NEW_RELIC_APP_NAME
@@ -596,6 +602,8 @@ Resources:
           Value: !Ref DbPassword
         - Name: DB_USER
           Value: !Ref DbUserName
+        - Name: DEVISE_SECRET_KEY
+          Value: !Ref DeviseSecretKey
         - Name: HELP_EMAIL
           Value: !Ref HelpEmail
         - Name: NEW_RELIC_APP_NAME
@@ -802,6 +810,8 @@ Resources:
           Value: !Ref DbPassword
         - Name: DB_USER
           Value: !Ref DbUserName
+        - Name: DEVISE_SECRET_KEY
+          Value: !Ref DeviseSecretKey
         - Name: HELP_EMAIL
           Value: !Ref HelpEmail
         - Name: NEW_RELIC_APP_NAME
