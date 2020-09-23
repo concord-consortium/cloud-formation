@@ -190,6 +190,9 @@ Parameters:
     Type: String
     Description: this key is used to generate random tokens for password reset and
       signup.
+  RailsSecretKeyBase:
+    Type: String
+    Description: Secret key base for cookie signing
 
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
@@ -436,6 +439,8 @@ Resources:
           Value: !Ref EnewsAPIListID
         - Name: ENEWS_API_URI
           Value: 'https://us2.api.mailchimp.com/3.0/lists'
+        - Name: RAILS_SECRET_KEY_BASE
+          Value: !Ref RailsSecretKeyBase
 
 
   # Notes from 2017-11-14:
@@ -690,6 +695,8 @@ Resources:
             - !Join ['-', ['report', !Select [1, !Split ['/', !Ref PortalReportVersion]]]]
         - Name: ELASTICSEARCH_URL
           Value: !Sub 'https://${ElasticSearchStack.Outputs.DomainEndpoint}'
+        - Name: RAILS_SECRET_KEY_BASE
+          Value: !Ref RailsSecretKeyBase
 
   # Need ECS Service definition
   ReportTargetGroup:
@@ -891,6 +898,8 @@ Resources:
           Value: !Ref EnewsAPIListID
         - Name: ENEWS_API_URI
           Value: 'https://us2.api.mailchimp.com/3.0/lists'
+        - Name: RAILS_SECRET_KEY_BASE
+          Value: !Ref RailsSecretKeyBase
 
 
   WorkerService:
