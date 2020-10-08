@@ -192,7 +192,9 @@ Parameters:
       signup.
   RailsSecretKeyBase:
     Type: String
-    Description: Secret key base for cookie signing
+    Description: Secret key base for cookie signing.  Used as the input secret to Rail's key generator,
+      which in turn is used to create all MessageVerifiers/MessageEncryptors, including the ones that
+      sign and encrypt cookies. To generate use `rake secret`, which generates a 128 character hex string.
 
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
