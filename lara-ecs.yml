@@ -150,6 +150,11 @@ Parameters:
     Type: String
     Description: URL to the Activity Player
     Default: https://activity-player.concord.org
+  ConversionScriptURL:
+    Type: String
+    Description: URL of script to create an Activity Player compatible version of 
+      resources by converting old embeddables to library interactives
+    Default: https://models-resources.concord.org/question-interactives/branch/master/convert-old-lara/?lara_root=https://authoring.concord.org&template=https://authoring.concord.org/api/v1/activities/11354.json
 
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
@@ -600,6 +605,8 @@ Resources:
           Value: !Ref ShutterbugURI
         - Name: ACTIVITY_PLAYER_URL
           Value: !Ref ActivityPlayerURL
+        - Name: CONVERSION_SCRIPT_URL
+          Value: !Ref ConversionScriptURL
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -912,6 +919,8 @@ Resources:
           Value: !Sub 'https://${HostName}.${DomainNameBase}'
         - Name: ACTIVITY_PLAYER_URL
           Value: !Ref ActivityPlayerURL
+        - Name: CONVERSION_SCRIPT_URL
+          Value: !Ref ConversionScriptURL
 
 
   WorkerService:
@@ -968,6 +977,8 @@ Metadata:
         default: "App Config"
       Parameters:
       - LaraDockerImage
+      - ActivityPlayerURL
+      - ConversionScriptURL
       - CRaterPassword
       - CRaterUrl
       - CRaterApiKey
