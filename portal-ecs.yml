@@ -306,6 +306,14 @@ Resources:
   # So I'm going set the Cpu requirment 384 this should bump the average usage up to 48%.
   # We could probably lower this further, but I'd like to be conservative with the
   # adjustments. I'm going to leave the memory the same.
+  #
+  # Notes from 2020-12-09:
+  # With the Cpu of 384, and the Cpu scaling alarm of 93, the app service was not scaling
+  # soon enough. The p95 response time was getting up to 3 seconds and the number of tasks
+  # was not scaling. I'm trying reducing the Cpu to 256 and the Cpu scaling alarm to 90.
+  # This should trigger a scale event much sooner and hopefully keep the overall response
+  # time down. The maximum number of app tasks (set as a parameter) is also increased to
+  # 20.
   AppTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -313,7 +321,7 @@ Resources:
       ContainerDefinitions:
       - Name: App
         Image: !Ref PortalDockerImage
-        Cpu: "384"
+        Cpu: "256"
         PortMappings:
         - ContainerPort: '80'
         Command:
@@ -458,6 +466,13 @@ Resources:
   #   ScaleUpStepBoundary 35
   #   ScaleUpAlarmThreshold 93
   #   ScaleDownAlarmThreshold 47
+
+  # Notes from 2020-12-09:
+  # The CPU reservation of the app service was adjusted from 384 to 256. The app was not
+  # scaling soon enough, so values here were only slightly modified to be more round:
+  #  ScaleUpStepBoundary 35
+  #  ScaleUpAlarmThreshold 90
+  #  ScaleDownAlarmThreshold 45
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -474,7 +489,7 @@ Resources:
         ScaleUpStepBoundary: '35'
         ScaleUpStepAdjustment1: '100'
         ScaleUpStepAdjustment2: '200'
-        ScaleUpAlarmThreshold: '93'
+        ScaleUpAlarmThreshold: '90'
         # this 2 minute evaluation period helps with an initial spike
         # when a new container is started, and it also helps the CPUUtilization start
         # to reflect the change in capacity. This is also the point of the Cooldown setting
@@ -484,7 +499,7 @@ Resources:
         ScaleUpAlarmPeriod: '60'
         ScaleDownCooldown: '300'
         ScaleDownStepAdjustment: '-1'
-        ScaleDownAlarmThreshold: '47'
+        ScaleDownAlarmThreshold: '45'
         # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
         # this approach helps offset a running average affecting the responsiveness.
         # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
