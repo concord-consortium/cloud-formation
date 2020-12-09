@@ -469,10 +469,12 @@ Resources:
 
   # Notes from 2020-12-09:
   # The CPU reservation of the app service was adjusted from 384 to 256. The app was not
-  # scaling soon enough, so values here were only slightly modified to be more round:
+  # scaling soon enough, with this CPU decrease the average CPU metric will be 1.5 times
+  # larger. So the scale up alarm doesn't need to be adjusted drastically. To err on the
+  # side of caution I've decreased the thresholds to keep the number of tasks higher.
   #  ScaleUpStepBoundary 35
-  #  ScaleUpAlarmThreshold 90
-  #  ScaleDownAlarmThreshold 45
+  #  ScaleUpAlarmThreshold 80
+  #  ScaleDownAlarmThreshold 35
   AppScalingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -489,7 +491,7 @@ Resources:
         ScaleUpStepBoundary: '35'
         ScaleUpStepAdjustment1: '100'
         ScaleUpStepAdjustment2: '200'
-        ScaleUpAlarmThreshold: '90'
+        ScaleUpAlarmThreshold: '80'
         # this 2 minute evaluation period helps with an initial spike
         # when a new container is started, and it also helps the CPUUtilization start
         # to reflect the change in capacity. This is also the point of the Cooldown setting
@@ -499,7 +501,7 @@ Resources:
         ScaleUpAlarmPeriod: '60'
         ScaleDownCooldown: '300'
         ScaleDownStepAdjustment: '-1'
-        ScaleDownAlarmThreshold: '45'
+        ScaleDownAlarmThreshold: '35'
         # this uses 5 periods of 1 minute instead of 1 period of 5 minutes
         # this approach helps offset a running average affecting the responsiveness.
         # If the CPU is at 49%, but 5 minutes ago it started at 1% then a 5 minute average
