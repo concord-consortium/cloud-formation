@@ -38,6 +38,12 @@ Parameters:
   DbHost:
     Type: String
     Description: The hostname of the database. Template assumes database name is portal.
+  LogStashDbHost:
+    Type: String
+    Description: The hostname of a logstash db host. This could be the same as the main
+      DbHost or it can be a read-only copy of the main database.
+      Template assumes database name is portal.
+    AllowedPattern: '.+'
   DbPassword:
     Type: String
     Description: The password of the database.
@@ -561,7 +567,7 @@ Resources:
         - Name: DB_NAME
           Value: portal
         - Name: DB_HOST
-          Value: !Ref DbHost
+          Value: !Ref LogStashDbHost
         - Name: DB_PASSWORD
           Value: !Ref DbPassword
         - Name: DB_USER
