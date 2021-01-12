@@ -3,17 +3,17 @@ Description: portal ecs stack
 Parameters:
   Environment:
     Type: String
-    Default: staging
-    AllowedValues: [staging, production]
-    Description: Enter staging or production. Default is staging.
+    Default: qa
+    AllowedValues: [qa, staging, production]
+    Description: Enter staging or production. Default is qa.
   ShortName:
     Type: String
     Description: 12 character or less name to use for naming created resources
     MaxLength: '12'
   SSLCertificateName:
     Type: String
-    AllowedValues: [star.concord.org, star.portal.concord.org, star.staging.concord.org]
-    Description: Two certificates are registered with AWS choose which one to use for the
+    AllowedValues: [star.concord.org, star.portal.concord.org, star.staging.concord.org, star.concordqa.org]
+    Description: Certificates registered with AWS. Choose which one to use for the
       load balancer
   DatabaseSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
@@ -29,11 +29,14 @@ Parameters:
       the main server will redirect users to this secondary server. This host will be accessed
       with https so the name needs to work with the selected SSL certificate.
 
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+
   ClusterStackName:
     Type: String
     Description: The name of the CloudFormation stack that manages the cluster you want
       this application deployed in.  The cluster security group will be added to the
-      database security group to allow the app to access the database.
+      database security group to allow the app to access the database. Vpc and subnets will be used by resources in this stack.
 
   DbHost:
     Type: String
@@ -209,6 +212,10 @@ Parameters:
       which in turn is used to create all MessageVerifiers/MessageEncryptors, including the ones that
       sign and encrypt cookies. To generate use `rake secret`, which generates a 128 character hex string.
 
+  NestedTemplatesFolder:
+    Type: String
+    Default: https://s3.amazonaws.com/concord-devops/cloud-formation
+
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
   CreateLoadBalancerHTTPRedirectCond: !Equals [!Ref CreateLoadBalancerHTTPRedirect, 'true']
@@ -216,11 +223,14 @@ Resources:
   LoadBalancerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-load-balancer.yml
+      TemplateURL: !Sub "${NestedTemplatesFolder}/ecs-load-balancer.yml"
       Parameters:
         LoadBalancerIdleTimeout: '180'
         DomainName: !Ref 'DomainName'
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
+        VpcId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterVpcId' }
+        Subnets: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSubnets' }
+        HostedZoneId: !Ref 'HostedZoneId'
 
   AppService:
     Type: AWS::ECS::Service
@@ -252,7 +262,7 @@ Resources:
       TargetGroupAttributes:
       - Key: deregistration_delay.timeout_seconds
         Value: '120'
-      VpcId: vpc-9c9714f9
+      VpcId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterVpcId' }
       # Use this name property to force the TargetGroup to be recreated whenever the load
       # balancer is recreated. Otherwise CloudFormation tries to add the TargetGroup
       # to the new load balancer before removing it from the old one. And that results
@@ -292,7 +302,7 @@ Resources:
   ElasticSearchStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/elastic-search.yml
+      TemplateURL: !Sub "${NestedTemplatesFolder}/elastic-search.yml"
       Parameters:
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
 
@@ -501,7 +511,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      TemplateURL: !Sub "${NestedTemplatesFolder}/task-autoscale-2-step-up.yml"
       Parameters:
         ServiceName: !GetAtt AppService.Name
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
@@ -776,7 +786,8 @@ Resources:
       AliasTarget:
         DNSName: !GetAtt LoadBalancerStack.Outputs.ELBDNSName
         HostedZoneId: !GetAtt LoadBalancerStack.Outputs.CanonicalHostedZoneID
-      HostedZoneName: concord.org.
+      # HostedZoneName: concord.org.
+      HostedZoneId: !Ref 'HostedZoneId'
       Name: !Ref ReportDomainName
       Type: A
 
@@ -972,7 +983,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       # Change to location of scaling Template
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml
+      TemplateURL: !Sub "${NestedTemplatesFolder}/task-autoscale-2-step-up.yml"
       Parameters:
         ServiceName: !GetAtt WorkerService.Name
         ClusterName: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterName' }
@@ -1004,7 +1015,7 @@ Resources:
   InternalLoadBalancerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-load-balancer.yml
+      TemplateURL: !Sub "${NestedTemplatesFolder}/ecs-load-balancer.yml"
       Parameters:
         ELBScheme: internal
         DomainName: ''
