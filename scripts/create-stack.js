@@ -197,7 +197,7 @@ async function saveStackParams() {
     }
   )
   const params = await getStackParams(stackName)
-  writeParamsToYML(params,nameResponse.fileName)
+  writeParamsToYML(params,paramPath(nameResponse.fileName))
   console.log(getStackParams(response.sourceStack))
 }
 
