@@ -20,7 +20,8 @@ Running script to create an app-only portal stack with parameters copied from an
     # modify create-config.yml to match what you want to do
     npm run create-stack
 
-This script should work for other types of stacks, but it hasn't been tested.
+This script should work for other types of stacks, but it hasn't been tested. See
+the file ./scripts/README.md
 
 ## Paired QA servers (Lara / Portal)
 2021-01-21: We want to be able tp deploy paired sets of Lara & Portal to the QA enviornment.
