@@ -4,7 +4,8 @@ const AWS = require('aws-sdk')
 const fs = require('fs')
 const util = require('util')
 const path = require('path')
-const { yamlParse } = require('yaml-cfn')
+const prompts = require('prompts')
+const { yamlParse, yamlDump } = require('yaml-cfn')
 
 // Convert fs.readFile into Promise version of same
 const readFile = util.promisify(fs.readFile)
@@ -24,6 +25,28 @@ function printParams (params, label) {
     // console.log('%j', param)
     console.log(`${param.ParameterKey}: ${param.ParameterValue}`)
   })
+  writeParams(params, label)
+}
+
+//
+// Path to a param file
+//
+function paramPath(filename) {
+  return `param-sets/${filename}`
+}
+
+//
+// Dump the params to a yaml file
+//
+function writeParamsToYML(params, filename) {
+  fs.writeFileSync(paramPath(filename), yamlDump(params))
+}
+
+//
+// Load params from a yaml file
+//
+async function readParamsFromYML(fileName) {
+  return await yamlParse(fs.readFileSync(paramPath(fileName)))
 }
 
 // This returns a new list of parameters
@@ -84,13 +107,48 @@ function filterBasedOnTemplate (templateBody, parameters) {
   })
 }
 
-async function main () {
-  const createConfigFile = path.join(__dirname, 'create-config.yml')
+async function selectYMLFile(dir, prompt='Select file', extension='.yml') {
+  let files = fs.readdirSync(dir).filter(fn => fn.endsWith(extension));
+  const response = await prompts({
+    type: 'select',
+    name: 'fileName',
+    message: prompt,
+    choices: files.map(f => ({title: f, value: f}))
+  })
+  return response.fileName
+}
+
+// This returns a list of active stacks for this AWS account
+async function getStackNames() {
+  var cloudformation = new AWS.CloudFormation()
+  const filters = ["CREATE_COMPLETE","UPDATE_COMPLETE"]
+  const allStacks = await cloudformation.listStacks({StackStatusFilter:filters}).promise()
+  const stackNames = allStacks.StackSummaries.map( (s) => s.StackName)
+  return stackNames
+}
+
+async function createStack () {
+  const stackChoices = await getStackNames()
+  const response = await prompts([
+    {
+      type: 'text',
+      name: 'configFile',
+      initial: 'create-config.yml',
+      message: 'Configuration file:',
+      validate: (name) => name.endsWith(".yml") ? true : "must be a yml file"
+    }, {
+      type: 'autocomplete',
+      name: 'sourceStack',
+      message: 'select an existing stack to copy config from',
+      choices: stackChoices.map( s => ({title: s, value: s}))
+    }
+  ]);
+
+  const createConfigFile = path.join(__dirname, response.configFile)
   const createConfigBody = await readFile(createConfigFile, 'utf8')
   const createConfig = yamlParse(createConfigBody)
 
   var cloudformation = new AWS.CloudFormation()
-
   const stacksResponse = await cloudformation.describeStacks({
     StackName: createConfig.OriginalStack }).promise()
 
@@ -98,9 +156,9 @@ async function main () {
   printParams(originalStack.Parameters, 'Original')
 
   const modifications = createConfig.ParameterModifications
-
+  const originalParams = originalStack.Parameters
   // Merge in the modifications
-  const modifiedParameters = modifyParams(originalStack.Parameters, modifications)
+  const modifiedParameters = modifyParams(originalParams, modifications)
 
   // Look for missing params based on template, and filter out any unnecssary param
   const templateFile = path.join(__dirname, '..', createConfig.Template)
@@ -109,15 +167,63 @@ async function main () {
 
   printParams(newParameters, 'New')
 
-  const createResult = await cloudformation.createStack({
-    StackName: createConfig.Name,
-    Capabilities: ['CAPABILITY_NAMED_IAM'],
-    TemplateBody: templateBody,
-    Parameters: newParameters
-  }).promise()
+  // const createResult = await cloudformation.createStack({
+  //   StackName: createConfig.Name,
+  //   Capabilities: ['CAPABILITY_NAMED_IAM'],
+  //   TemplateBody: templateBody,
+  //   Parameters: newParameters
+  // }).promise()
 
   console.log('=== Result ===')
   console.log(JSON.stringify(createResult, null, 2))
+}
+
+async function getStackParams(stackName) {
+  var cloudformation = new AWS.CloudFormation()
+  const stacksResponse = await cloudformation.describeStacks({StackName:stackName}).promise()
+  return stacksResponse.Stacks[0].Parameters
+}
+
+async function saveStackParams() {
+  const stackChoices = await getStackNames()
+  const response = await prompts(
+    {
+      type: 'autocomplete',
+      name: 'sourceStack',
+      message: 'select an existing stack to copy config from',
+      choices: stackChoices.map( s => ({title: s, value: s}))
+    }
+  )
+  const stackName = response.sourceStack
+  const nameResponse = await prompts(
+    {
+      type: 'text',
+      name: 'fileName',
+      message: 'File Name:',
+      initial: `${stackName}-params.yml`
+    }
+  )
+  const params = await getStackParams(stackName)
+  writeParamsToYML(params,nameResponse.fileName)
+  console.log(getStackParams(response.sourceStack))
+}
+
+async function inspectStackParams() {
+  console.log(await readParamsFromYML(await selectYMLFile('param-sets')))
+}
+
+async function main() {
+  response = await prompts({
+    type: 'select',
+    name: 'action',
+    message: 'Select an action',
+    choices: [
+      { title: 'Save stack params', value: saveStackParams },
+      { title: 'Inspect stack params', value: inspectStackParams },
+      { title: 'Create stack', value: createStack },
+    ]
+  })
+  await response.action()
 }
 
 // Handle errors during api calls, these cause rejected promises
