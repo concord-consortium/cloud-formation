@@ -109,6 +109,7 @@ function filterBasedOnTemplate (templateBody, parameters) {
   })
 }
 
+// Interactive prompt to read return a yml file
 async function selectYMLFile(dir, prompt='Select file', extension='.yml') {
   let files = fs.readdirSync(dir).filter(fn => fn.endsWith(extension));
   const response = await prompts({
@@ -129,7 +130,8 @@ async function getStackNames() {
   return stackNames
 }
 
-
+// This function prompts the user for a config file, and uses
+// the configuration to create a new live stack in AWS CloudFormation
 async function createStack () {
   const createConfig = await readParamsFromYML(await selectYMLFile('configs'))
   let originalParams = null
@@ -171,19 +173,21 @@ async function createStack () {
   console.log(JSON.stringify(createResult, null, 2))
 }
 
+// Download StackParams from the current AWS Environment
 async function getStackParams(stackName) {
   var cloudformation = new AWS.CloudFormation()
   const stacksResponse = await cloudformation.describeStacks({StackName:stackName}).promise()
   return stacksResponse.Stacks[0].Parameters
 }
 
+// Save Parameters from a named stack into the `stack-params` folder.
 async function saveStackParams() {
   const stackChoices = await getStackNames()
   const response = await prompts(
     {
       type: 'autocomplete',
       name: 'sourceStack',
-      message: 'select an existing stack to copy config from',
+      message: 'Select an existing stack to save in parameters file',
       choices: stackChoices.map( s => ({title: s, value: s}))
     }
   )
@@ -192,7 +196,7 @@ async function saveStackParams() {
     {
       type: 'text',
       name: 'fileName',
-      message: 'File Name:',
+      message: 'Save file name (in stack-params folder):',
       initial: `${stackName}-params.yml`
     }
   )
@@ -201,8 +205,10 @@ async function saveStackParams() {
   console.log(getStackParams(response.sourceStack))
 }
 
+// View the stack Parameters for a given params file
 async function inspectStackParams() {
-  console.log(await readParamsFromYML(await selectYMLFile('stack-params')))
+  const ymlFile = await selectYMLFile('stack-params', 'select stack-params file')
+  console.log(await readParamsFromYML(ymlFile))
 }
 
 async function main() {
