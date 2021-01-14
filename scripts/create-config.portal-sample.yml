@@ -10,7 +10,7 @@ ParameterModifications:
   # 12 char or less name prepended to some AWS resources
   ShortName: 'TestStack'
   # Version of the portal to use
-  PortalDockerImage: 'concordconsortium/rigse:v1.33.0'
+  PortalDockerImage: 'concordconsortium/rigse-railslts:v1.33.0'
   # Route53 domain name
   DomainName: 'test-stack.staging.concord.org'
   # Unique log group in cloudwatch
