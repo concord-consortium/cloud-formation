@@ -16,7 +16,7 @@ configurations in this folder.
 ## Config File format
 Files in the `configs` directory should specify the following parameters:
 * `Name`
-* `Template` -- the name of the CloudForamtion template yaml file to use
+* `Template` -- the name of the CloudFormation template yaml file to use
 * optionally one of the following source Param types:
     * `StackParams` — The file under `stack-params` to use for default params
     * `OriginalStack` — The name of a running stack to copy params from
@@ -26,12 +26,12 @@ Files in the `configs` directory should specify the following parameters:
 
 ## .gitignore
 Because you will be creating config files that might have passwords in them,
-git will ginore `.yml` files in the `configs` and `stack-params` folders. Sample
+git will ignore `.yml` files in the `configs` and `stack-params` folders. Sample
 files have been renamed `.sample-yml` which might break editor configurations.
 
 
-reads a create-config.yml file and then duplicates
-an "OriginalStack" modifying parameters declared in the create-config.yml
+reads a `create-config.yml` file and then duplicates
+an "OriginalStack" modifying parameters declared in the `create-config.yml`
 
 In the case of the Portal and LARA these duplicate stacks do not have their
 own database unless you override the database parameters. Without their own
