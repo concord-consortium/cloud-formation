@@ -161,14 +161,14 @@ async function createStack () {
 
   printParams(newParameters, 'New')
 
-  // const createResult = await cloudformation.createStack({
-  //   StackName: createConfig.Name,
-  //   Capabilities: ['CAPABILITY_NAMED_IAM'],
-  //   TemplateBody: templateBody,
-  //   Parameters: newParameters
-  // }).promise()
-  // console.log('=== Result ===')
-  // console.log(JSON.stringify(createResult, null, 2))
+  const createResult = await cloudformation.createStack({
+    StackName: createConfig.Name,
+    Capabilities: ['CAPABILITY_NAMED_IAM'],
+    TemplateBody: templateBody,
+    Parameters: newParameters
+  }).promise()
+  console.log('=== Result ===')
+  console.log(JSON.stringify(createResult, null, 2))
 }
 
 async function getStackParams(stackName) {
