@@ -175,18 +175,6 @@ Parameters:
     Description: OpenGraph image property used for home page ad other pages
       without their own description
 
-  SubnetIds:
-    Type: String
-    Description: Subnet must be a publicly accessible subnet on the main VPC
-    # QA Value: 'subnet-13a1133d,subnet-2d925713'
-    Default: 'subnet-7fb16326'
-
-  VpcId:
-    Type: String
-    # QA Value: 'vpc-c116d1bb'
-    Description: The VPC to run in.
-    Default: 'vpc-9c9714f9'
-
   RollbarAccessToken:
     Type: String
     Description: token for server side error messages sent to Rollbar
@@ -228,6 +216,11 @@ Parameters:
   NestedTemplatesFolder:
     Type: String
     Default: https://s3.amazonaws.com/concord-devops/cloud-formation
+
+  ElasticSearchSubnetId:
+    Type: String
+    # QA Value: 'subnet-13a1133d'
+    Default: 'subnet-7fb16326'
 
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
@@ -318,8 +311,8 @@ Resources:
       TemplateURL: !Sub "${NestedTemplatesFolder}/elastic-search.yml"
       Parameters:
         ClusterSecurityGroupId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterSecurityGroupId' }
-        VpcId: !Ref 'VpcId'
-        SubnetIds: !Ref 'SubnetIds'
+        VpcId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterVpcId' }
+        SubnetIds: !Ref ElasticSearchSubnetId
 
 
   # Notes from 2017-11-14:
@@ -783,7 +776,7 @@ Resources:
       # to the target group
       Port: '80'
       Protocol: HTTP
-      VpcId: !Ref 'VpcId'
+      VpcId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterVpcId' }
       TargetGroupAttributes:
       # The report is only used by admins, and if their connections get killed off during
       # an update that is OK
@@ -1078,7 +1071,7 @@ Resources:
       # to keep this value small
       - Key: deregistration_delay.timeout_seconds
         Value: '5'
-      VpcId: !Ref 'VpcId'
+      VpcId: { 'Fn::ImportValue': !Sub '${ClusterStackName}-ClusterVpcId' }
       Name: !Sub "${ShortName}Solr-${InternalLoadBalancerStack.Outputs.LoadBalancerEndingId}"
 
 
