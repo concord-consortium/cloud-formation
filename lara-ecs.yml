@@ -72,6 +72,14 @@ Parameters:
     Type: String
     Description: The OAuth2 key to authenticate via learn. If this is not set, the portal
       will not be configured.
+  QAPortalSecret:
+    Type: String
+    Description: The OAuth2 key to authenticate via the QA portal. If this is not set, the portal
+      will not be configured. Be sure to check the value of PortalClientID, and make sure that value
+      matches the `id` value in the Portal Auth Client.
+  QAPortalURL:
+    Type: String
+    Description: The QA Portal URL to use for OAuth2 authentication, used if QAPortalSecret is specified
   CRaterPassword:
     Type: String
   CRaterUrl:
@@ -165,6 +173,7 @@ Conditions:
   AddHASPortal: !Not [!Equals [!Ref HASPortalSecret, ""]]
   AddITSIPortal: !Not [!Equals [!Ref ITSIPortalSecret, ""]]
   AddLearnPortal: !Not [!Equals [!Ref LearnPortalSecret, ""]]
+  AddQAPortal: !Not [!Equals [!Ref QAPortalSecret, ""]] # Also check for QAPortalURL?
   CreateLoadBalancerHTTPRedirectCond: !Equals [!Ref CreateLoadBalancerHTTPRedirect, 'true']
   HasSubnetIds: !Not [!Equals [!Join ["", !Ref SubnetIds], ""]]
 
@@ -384,6 +393,7 @@ Resources:
             - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
             - !If [ AddITSIPortal, ITSI, !Ref 'AWS::NoValue']
             - !If [ AddLearnPortal, Learn, !Ref 'AWS::NoValue']
+            - !If [ AddQAPortal, QA_PORTAL, !Ref 'AWS::NoValue']
 
         # fake auth provider config
         - !If
@@ -519,7 +529,7 @@ Resources:
             Value: https://itsi.portal.concord.org/
           - !Ref 'AWS::NoValue'
 
-        # learn confiuration
+        # learn configuration
         - !If
           - AddLearnPortal
           - Name: CONCORD_LEARN_CLIENT_ID
@@ -534,6 +544,28 @@ Resources:
           - AddLearnPortal
           - Name: CONCORD_LEARN_URL
             Value: https://learn.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # QA configuration
+        - !If
+          - AddQAPortal
+          - Name: CONCORD_QA_PORTAL_CLIENT_ID
+            Value: !Ref PortalClientID
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddQAPortal
+          - Name: CONCORD_QA_PORTAL_CLIENT_SECRET
+            Value: !Ref QAPortalSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddQAPortal
+          - Name: CONCORD_QA_PORTAL_DISPLAY_NAME
+            Value: QA Portal
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddQAPortal
+          - Name: CONCORD_QA_PORTAL_URL
+            Value: !Ref QAPortalURL
           - !Ref 'AWS::NoValue'
 
         - Name: C_RATER_CLIENT_ID
@@ -718,6 +750,7 @@ Resources:
             - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
             - !If [ AddITSIPortal, ITSI, !Ref 'AWS::NoValue']
             - !If [ AddLearnPortal, Learn, !Ref 'AWS::NoValue']
+            - !If [ AddQAPortal, QA_PORTAL, !Ref 'AWS::NoValue']
 
         # fake auth provider config
         - !If
@@ -868,6 +901,28 @@ Resources:
           - AddLearnPortal
           - Name: CONCORD_LEARN_URL
             Value: https://learn.concord.org/
+          - !Ref 'AWS::NoValue'
+
+        # QA configuration
+        - !If
+          - AddQAPortal
+          - Name: CONCORD_QA_PORTAL_CLIENT_ID
+            Value: !Ref PortalClientID
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddQAPortal
+          - Name: CONCORD_QA_PORTAL_CLIENT_SECRET
+            Value: !Ref QAPortalSecret
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddQAPortal
+          - Name: CONCORD_QA_PORTAL_DISPLAY_NAME
+            Value: QA Portal
+          - !Ref 'AWS::NoValue'
+        - !If
+          - AddQAPortal
+          - Name: CONCORD_QA_PORTAL_URL
+            Value: !Ref QAPortalURL
           - !Ref 'AWS::NoValue'
 
         - Name: C_RATER_CLIENT_ID

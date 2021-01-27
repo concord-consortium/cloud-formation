@@ -22,6 +22,15 @@ Running script to create an app-only portal stack with parameters copied from an
 
 This script should work for other types of stacks, but it hasn't been tested.
 
+## Paired QA servers (Lara / Portal)
+2021-01-21: We want to be able tp deploy paired sets of Lara & Portal to the QA enviornment.
+Recent template changes should make this easier.
+### Parameters for QA Paired Authentication:
+
+* If the `QAPortalSecret` and `QAPortalURL` parameters are set in the `create-config.yml` file, the `lara-ecs.yml` template will configure a new `CONCORD_CONFIGURED_PORTALS` auth provider.
+* Check or set the value for the parameter `PortalClientID`
+* Make sure `PortalClientID`, `QAPortalURL` and `QAPortalSecret` match an entry in the list of Auth Clients on the paired Portal.
+
 ## api.concord.org
 
 This domain is managed by the api.concord.org.yml CloudFormation template.  That template creates the domain within the AWS API Gateway service and adds a Route 53 recordset pointing to the CloudFront distribution automatically created as part of the API Gateway domain.

@@ -15,3 +15,9 @@ ParameterModifications:
   HostName: 'lara-interactives-test'
   # Unique log group in cloudwatch
   CloudWatchLogGroup: 'lara-interactives-test'
+
+  # Portal Authentication configuration for paired QA Portal ....
+  # Portal ClientID is the clientID in the portal, used to check auth against secret.
+  PortalClientID: authoring-qa
+  QAPortalSecret: SOME_GOOD_SECRET_VALUE_HERE
+  QAPortalURL: https://ngsa-npaessel.concordqa.org/

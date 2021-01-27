@@ -8,6 +8,18 @@ Parameters:
       the security group id of the cluster, this security group will be allowed to access
       the elastic search domain
 
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnet must be a publicly accessible subnet on the main VPC
+    # QA Subnets [subnet-13a1133d,subnet-2d925713]
+    Default: 'subnet-7fb16326'
+
+  VpcId:
+    Type: String
+    # QA Value: 'vpc-c116d1bb'
+    Description: The VPC to run in.
+    Default: 'vpc-9c9714f9'
+
 #####
 # Note this requires running
 #   aws iam create-service-linked-role --aws-service-name es.amazonaws.com
@@ -41,8 +53,7 @@ Resources:
             Action: 'es:*'
             Resource: '*'
       VPCOptions:
-        SubnetIds:
-          - subnet-7fb16326
+        SubnetIds: !Ref 'SubnetIds'
         SecurityGroupIds:
           - !Ref ElasticSearchSecurityGroup
       AdvancedOptions:
@@ -52,7 +63,7 @@ Resources:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
       GroupDescription: 'Elastic Search endpoint security group'
-      VpcId: 'vpc-9c9714f9'
+      VpcId: !Ref 'VpcId'
       SecurityGroupIngress:
         - FromPort: '443'
           IpProtocol: tcp

@@ -11,6 +11,7 @@ Parameters:
       HostedZoneId
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
+    # TODO: Make this a required parameter, remove default.
     Default: "Z2P4W3M7MDAUV6"
   ClusterSecurityGroupId:
     Type: String
