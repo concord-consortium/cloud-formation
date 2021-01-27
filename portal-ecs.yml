@@ -31,6 +31,10 @@ Parameters:
 
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
+    Default: Z2P4W3M7MDAUV6
+    Description: The Route53 hosted zone for the DNS entries for the portal and report portal.
+      This should be concord.org for the production AWS account and concordqa.org for the
+      QA AWS account.
 
   ClusterStackName:
     Type: String
@@ -215,7 +219,7 @@ Parameters:
 
   NestedTemplatesFolder:
     Type: String
-    Default: https://s3.amazonaws.com/concord-devops/cloud-formation
+    Default: https://s3.amazonaws.com/concord-devops/cloud-formation/v3
 
   ElasticSearchSubnetId:
     Type: String
