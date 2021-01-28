@@ -226,6 +226,11 @@ Parameters:
     # QA Value: 'subnet-13a1133d'
     Default: 'subnet-7fb16326'
 
+  LoggerUri:
+    Type: String
+    Default: //cc-log-manager.herokuapp.com/api/logs
+    Description: Protocol relative uri for log manager api endpoint. Default is //cc-log-manager.herokuapp.com/api/logs.
+
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
   CreateLoadBalancerHTTPRedirectCond: !Equals [!Ref CreateLoadBalancerHTTPRedirect, 'true']
@@ -495,7 +500,8 @@ Resources:
           Value: 'https://us2.api.mailchimp.com/3.0/lists'
         - Name: RAILS_SECRET_KEY_BASE
           Value: !Ref RailsSecretKeyBase
-
+        - Name: LOGGER_URI
+          Value: !Ref LoggerUri
 
   # Notes from 2017-11-14:
   # Values where changed to match the changed made to the CPU reservation value for the
@@ -982,7 +988,8 @@ Resources:
           Value: 'https://us2.api.mailchimp.com/3.0/lists'
         - Name: RAILS_SECRET_KEY_BASE
           Value: !Ref RailsSecretKeyBase
-
+        - Name: LOGGER_URI
+          Value: !Ref LoggerUri
 
   WorkerService:
     Type: AWS::ECS::Service
