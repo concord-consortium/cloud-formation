@@ -20,12 +20,31 @@ Running script to create an app-only portal stack with parameters copied from an
     # modify create-config.yml to match what you want to do
     npm run create-stack
 
-This script should work for other types of stacks, but it hasn't been tested. See
-the file ./scripts/README.md
+This script should work for other types of stacks, but it hasn't been tested.
+
+See the file ./scripts/README.md for more details.
 
 ## Paired QA servers (Lara / Portal)
-2021-01-21: We want to be able tp deploy paired sets of Lara & Portal to the QA enviornment.
+2021-01-21: We want to be able tp deploy paired sets of Lara & Portal to the QA environment.
 Recent template changes should make this easier.
+
+1. Change into the `scripts` directory and install the dependencies: `cd scripts && npm install`
+2. Create some configuration files. These config templates will setup your stacks for you. See the `README.md` file in the scripts directory for more info: `cp configs/create-config.sample.yml configs/create-my-project-config.yml`
+3. Copy Parameters from production or staging stacks.
+	1. Select your primary AWS account credentials to copy stack parameters for the production Lara and Portal instances you are working on. `export AWS_PROFILE=concord-qa`
+	2. Run the `create-stack` npm script to copy the stack paraemters your want. `npm run create-stack`
+	3. Select the first menu item "Save stack params".  The script will show you a list of running stacks. Type-ahead search for the stack you want to copy into the QA environment.
+	4. Your parameters will be saved in the folder `stack-params`
+	5. Modify your `configs/create-my-project-config.yml file`
+		1. Update the `OriginalStack` parameter to point to the stack-params file you just downloaded.
+		2. Update any `ParameterModifications` you would like to ovveride. You will especially want to look at the domainName
+		3. See the `scripts/README.md` file for more info
+	6. Configure AWS command line tools. Set your `AWS_PROFILE` to the `concord-qa` account.
+	7.  Run the `create-stack` npm script again.
+	8.  Select `Create stack` from the script menu, selecting your newly modified configuration file (`create-my-project-config.yml`)
+	9.  Monitor the creation of your stack using the AWS console in the ConcordQA environment.
+
+
 ### Parameters for QA Paired Authentication:
 
 * If the `QAPortalSecret` and `QAPortalURL` parameters are set in the `create-config.yml` file, the `lara-ecs.yml` template will configure a new `CONCORD_CONFIGURED_PORTALS` auth provider.
