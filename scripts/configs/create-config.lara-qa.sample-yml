@@ -5,19 +5,28 @@ Name: 'lara-int-test'
 # YAML cloudformation template for this new stack
 Template: 'lara-ecs.yml'
 # The parameters from the original stack will be used as the defaults
-OriginalStack: 'lara-qa'
+StackParams: lara-production-params.yml
 # Modifications to the original stack's parameters
 # Any parameters not specified in the Template will be automatically removed
 ParameterModifications:
   # Version of lara to use
   # LaraDockerImage: 'concordconsortium/rigse:v1.33.0'
   # First part of hostname is added to the DomainName property
-  HostName: 'lara-interactives-test'
+  HostName: 'YOUR LARA'
+  DomainNameBase: 'concordqa.org'
+
   # Unique log group in cloudwatch
-  CloudWatchLogGroup: 'lara-interactives-test'
+  CloudWatchLogGroup: 'Your LARA Hostname'
+  ActivityPlayerURL: 'https://activity-player.concord.org/branch/master/'
+  ConversionScriptURL: 'https://models-resources.concord.org/question-interactives/branch/master/convert-old-lara/?lara_root=https://YOURHOSTNAME.concordqa.org&template=https://lara-npaessel-qa.concordqa.org/api/v1/activities/11354.json'
+
+  DbHost: 'YOUR_RDS_SERVER.rds.amazonaws.com'
+  DatabaseSecurityGroupId: 'find this value in your RDS record'
+  ReportServiceToken: 'ITS A SECRET. Check 1Password'
+  ReportServiceURL: 'https://us-central1-report-service-dev.cloudfunctions.net/api'
 
   # Portal Authentication configuration for paired QA Portal ....
   # Portal ClientID is the clientID in the portal, used to check auth against secret.
-  PortalClientID: authoring-qa
-  QAPortalSecret: SOME_GOOD_SECRET_VALUE_HERE
-  QAPortalURL: https://ngsa-npaessel.concordqa.org/
+  PortalClientID: '(check and update auth-clients in portal)'
+  QAPortalSecret: '(check and update auth-clients in portal)'
+  QAPortalURL: 'https://YOUR_PORTAL.concordqa.org/'

@@ -3,7 +3,8 @@ Name: 'test-stack'
 # YAML cloudformation template for this new stack
 Template: 'portal-app-only.yml'
 # The parameters from the original stack will be used as the defaults
-OriginalStack: 'learn-ecs-staging'
+# OriginalStack: 'learn-ecs-staging'
+StackParams: ngsa-production-params.yml
 # Modifications to the original stack's parameters
 # Any parameters not specified in the Template will be automatically removed
 ParameterModifications:
@@ -20,4 +21,24 @@ ParameterModifications:
   # This is the host name of the internal load balancer setup by the main
   # stack.  You can find it in the Outputs of the InternalLoadBalancerStack. It is the
   # ELBDNSName property.
-  SolrLoadBalancerHostName: 'Replace Me'
+
+  Environment: 'qa'
+  DbHost: YOUR_PORTAL_RDS_HOST.rds.amazonaws.com
+  DatabaseSecurityGroupId: YOUR_PORTAL_RDS_HOST_SECURITY_GROUP_ID
+  SSLCertificateName: star.concordqa.org
+  AuthoringSiteURL: https://YOUR_LARA.concordqa.org
+
+  # We don't want to accidentally access production S3 buckets
+  S3SecreateAccessKey: left_blank
+  S3AccessKeyId: left_blank
+  ReportDomainName: YOUR_PORTAL_NAME.concordqa.org
+
+  HostedZoneId: 'Z270F8MK5GG1RH'
+  LogStashDbHost: YOUR_PORTAL_RDS_HOST.us-east-1.rds.amazonaws.com
+  # AppSignalPushAPIKey: (Can probably omit or copy from source params)
+  # AppSignalAppName: (Can probably omit or copy from source params)
+  DeviseSecretKey: (Can probably omit or copy from source params)
+  RailsSecretKeyBase: (Can probably omit or copy from source params)
+  NestedTemplatesFolder: https://s3.amazonaws.com/concordqa-devops/cloud-formation
+  ClusterStackName: qa-cluster
+  ElasticSearchSubnetId: subnet-13a1133d
