@@ -31,6 +31,10 @@ Parameters:
 
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
+    Default: Z2P4W3M7MDAUV6
+    Description: The Route53 hosted zone for the DNS entries for the portal and report portal.
+      This should be concord.org for the production AWS account and concordqa.org for the
+      QA AWS account.
 
   ClusterStackName:
     Type: String
@@ -215,12 +219,17 @@ Parameters:
 
   NestedTemplatesFolder:
     Type: String
-    Default: https://s3.amazonaws.com/concord-devops/cloud-formation
+    Default: https://s3.amazonaws.com/concord-devops/cloud-formation/v3
 
   ElasticSearchSubnetId:
     Type: String
     # QA Value: 'subnet-13a1133d'
     Default: 'subnet-7fb16326'
+
+  LoggerUri:
+    Type: String
+    Default: //cc-log-manager.herokuapp.com/api/logs
+    Description: Protocol relative uri for log manager api endpoint. Default is //cc-log-manager.herokuapp.com/api/logs.
 
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
@@ -491,7 +500,8 @@ Resources:
           Value: 'https://us2.api.mailchimp.com/3.0/lists'
         - Name: RAILS_SECRET_KEY_BASE
           Value: !Ref RailsSecretKeyBase
-
+        - Name: LOGGER_URI
+          Value: !Ref LoggerUri
 
   # Notes from 2017-11-14:
   # Values where changed to match the changed made to the CPU reservation value for the
@@ -978,7 +988,8 @@ Resources:
           Value: 'https://us2.api.mailchimp.com/3.0/lists'
         - Name: RAILS_SECRET_KEY_BASE
           Value: !Ref RailsSecretKeyBase
-
+        - Name: LOGGER_URI
+          Value: !Ref LoggerUri
 
   WorkerService:
     Type: AWS::ECS::Service
