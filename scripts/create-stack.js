@@ -4,7 +4,8 @@ const AWS = require('aws-sdk')
 const fs = require('fs')
 const util = require('util')
 const path = require('path')
-const { yamlParse } = require('yaml-cfn')
+const prompts = require('prompts')
+const { yamlParse, yamlDump } = require('yaml-cfn')
 
 // Convert fs.readFile into Promise version of same
 const readFile = util.promisify(fs.readFile)
@@ -24,6 +25,30 @@ function printParams (params, label) {
     // console.log('%j', param)
     console.log(`${param.ParameterKey}: ${param.ParameterValue}`)
   })
+}
+
+//
+// Path to a param file
+//
+function paramPath(filename) {
+  return `stack-params/${filename}`
+}
+function configPath(filename) {
+  return `configs/${filename}`
+}
+
+//
+// Dump the params to a yaml file
+//
+function writeParamsToYML(params, path) {
+  fs.writeFileSync(path, yamlDump(params))
+}
+
+//
+// Load params from a yaml file
+//
+async function readParamsFromYML(path) {
+  return await yamlParse(fs.readFileSync(path))
 }
 
 // This returns a new list of parameters
@@ -84,23 +109,52 @@ function filterBasedOnTemplate (templateBody, parameters) {
   })
 }
 
-async function main () {
-  const createConfigFile = path.join(__dirname, 'create-config.yml')
-  const createConfigBody = await readFile(createConfigFile, 'utf8')
-  const createConfig = yamlParse(createConfigBody)
+// Interactive prompt to read return a yml file
+async function selectYMLFile(dir, prompt='Select file', extension='.yml') {
+  let files = fs.readdirSync(dir).filter(fn => fn.endsWith(extension));
+  const response = await prompts({
+    type: 'select',
+    name: 'fileName',
+    message: prompt,
+    choices: files.map(f => ({title: f, value: f}))
+  })
+  return `${dir}/${response.fileName}`
+}
+
+// This returns a list of active stacks for this AWS account
+async function getStackNames() {
+  var cloudformation = new AWS.CloudFormation()
+  const filters = ["CREATE_COMPLETE","UPDATE_COMPLETE"]
+  const allStacks = await cloudformation.listStacks({StackStatusFilter:filters}).promise()
+  const stackNames = allStacks.StackSummaries.map( (s) => s.StackName)
+  return stackNames
+}
+
+// This function prompts the user for a config file, and uses
+// the configuration to create a new live stack in AWS CloudFormation
+async function createStack () {
+  const createConfig = await readParamsFromYML(await selectYMLFile('configs'))
+  let originalParams = null
+
+  // Config files should specify StackParams value for Source Param set in
+  // the folder `stack-params`
+  if (createConfig.StackParams) {
+    originalParams = await readParamsFromYML(paramPath(createConfig.StackParams))
+  }
+  // Legacy method for getting params from an existing stack
+  else if (createConfig.OriginalStack) {
+    originalParams = await getStackParams(createConfig.OriginalStack)
+  }
+  if (!originalParams) {
+    console.warn("No source parameters defined in `ParamSet` of config")
+    console.log("select from existing:")
+    originalParams = await readParamsFromYML(await selectYMLFile('stack-params'))
+  }
 
   var cloudformation = new AWS.CloudFormation()
-
-  const stacksResponse = await cloudformation.describeStacks({
-    StackName: createConfig.OriginalStack }).promise()
-
-  const originalStack = stacksResponse.Stacks[0]
-  printParams(originalStack.Parameters, 'Original')
-
   const modifications = createConfig.ParameterModifications
-
   // Merge in the modifications
-  const modifiedParameters = modifyParams(originalStack.Parameters, modifications)
+  const modifiedParameters = modifyParams(originalParams, modifications)
 
   // Look for missing params based on template, and filter out any unnecssary param
   const templateFile = path.join(__dirname, '..', createConfig.Template)
@@ -115,9 +169,60 @@ async function main () {
     TemplateBody: templateBody,
     Parameters: newParameters
   }).promise()
-
   console.log('=== Result ===')
   console.log(JSON.stringify(createResult, null, 2))
+}
+
+// Download StackParams from the current AWS Environment
+async function getStackParams(stackName) {
+  var cloudformation = new AWS.CloudFormation()
+  const stacksResponse = await cloudformation.describeStacks({StackName:stackName}).promise()
+  return stacksResponse.Stacks[0].Parameters
+}
+
+// Save Parameters from a named stack into the `stack-params` folder.
+async function saveStackParams() {
+  const stackChoices = await getStackNames()
+  const response = await prompts(
+    {
+      type: 'autocomplete',
+      name: 'sourceStack',
+      message: 'Select an existing stack to save in parameters file',
+      choices: stackChoices.map( s => ({title: s, value: s}))
+    }
+  )
+  const stackName = response.sourceStack
+  const nameResponse = await prompts(
+    {
+      type: 'text',
+      name: 'fileName',
+      message: 'Save file name (in stack-params folder):',
+      initial: `${stackName}-params.yml`
+    }
+  )
+  const params = await getStackParams(stackName)
+  writeParamsToYML(params,paramPath(nameResponse.fileName))
+  console.log(getStackParams(response.sourceStack))
+}
+
+// View the stack Parameters for a given params file
+async function inspectStackParams() {
+  const ymlFile = await selectYMLFile('stack-params', 'select stack-params file')
+  console.log(await readParamsFromYML(ymlFile))
+}
+
+async function main() {
+  response = await prompts({
+    type: 'select',
+    name: 'action',
+    message: 'Select an action',
+    choices: [
+      { title: 'Save stack params', value: saveStackParams },
+      { title: 'Inspect stack params', value: inspectStackParams },
+      { title: 'Create stack', value: createStack },
+    ]
+  })
+  await response.action()
 }
 
 // Handle errors during api calls, these cause rejected promises

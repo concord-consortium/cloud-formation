@@ -12,6 +12,7 @@
   "license": "MIT",
   "dependencies": {
     "aws-sdk": "^2.328.0",
+    "prompts": "^2.4.0",
     "yaml-cfn": "^0.2.0"
   }
 }
