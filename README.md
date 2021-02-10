@@ -31,7 +31,7 @@ Recent template changes should make this easier.
 1. Change into the `scripts` directory and install the dependencies: `cd scripts && npm install`
 2. Create some configuration files. These config templates will setup your stacks for you. See the `README.md` file in the scripts directory for more info: `cp configs/create-config.sample.yml configs/create-my-project-config.yml`
 3. Copy Parameters from production or staging stacks.
-	1. Select your primary AWS account credentials to copy stack parameters for the production Lara and Portal instances you are working on. `export AWS_PROFILE=concord-qa`
+	1. Select your primary AWS account credentials to copy stack parameters for the production Lara and Portal instances you are working on. `export AWS_PROFILE=concord`
 	2. Run the `create-stack` npm script to copy the stack paraemters your want. `npm run create-stack`
 	3. Select the first menu item "Save stack params".  The script will show you a list of running stacks. Type-ahead search for the stack you want to copy into the QA environment.
 	4. Your parameters will be saved in the folder `stack-params`
