@@ -18,7 +18,7 @@ params = {};
 let data = await s3.listBuckets(params).promise();
 
 for (const bucket of data.Buckets) {
-  console.log(bucket);
+  console.log(bucket.Name);
 
   const bucketParam = {
     Bucket: bucket.Name
@@ -74,6 +74,8 @@ for (const bucket of data.Buckets) {
   // bucket-name.s3-website.region.amazonaws.com
   buckets.push({
     ...bucket,
+    BucketType: tags.BucketType,
+    Notes: tags.Notes,
     ...corsFields,
     Website: website ? `http://${bucket.Name}.s3-website.${bucketRegion}.amazonaws.com` : null,
     Region: bucketRegion,
@@ -87,12 +89,14 @@ const csvBucketWriter = createCsvWriter({
     path: 'buckets.csv',
     header: [
         {id: 'Name', title: 'Name'},
-        {id: 'CreationDate', title: 'Created'},
+        {id: 'BucketType', title: 'BucketType'},
+        {id: 'Notes', title: 'Notes'},
         {id: 'AllowedHeaders', title: 'AllowedHeaders'},
         {id: 'AllowedMethods', title: 'AllowedMethods'},
         {id: 'AllowedOrigins', title: 'AllowedOrigins'},
         {id: 'ExposeHeaders', title: 'ExposeHeaders'},
         {id: 'MaxAgeSeconds', title: 'MaxAgeSeconds'},
+        {id: 'CreationDate', title: 'Created'},
         {id: 'Website', title: 'Website'},
         {id: 'Region', title: 'Region'},
         {id: 'Tags', title: 'Tags'},
