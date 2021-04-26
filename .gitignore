@@ -1,5 +1,5 @@
+node_modules
+
 scripts/create-config.yml
-scripts/node_modules
 scripts/stack-params/*.yml
 scripts/configs/*.yml
-

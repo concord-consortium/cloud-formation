@@ -6,21 +6,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "create-stack": "node create-stack.js",
-    "create-stack-debug": "node inspect create-stack.js",
-    "bucket-list": "node bucket-list.mjs",
-    "bucket-update-tags": "node bucket-update-tags.mjs",
-    "bucket-update-cors": "node bucket-update-cors.mjs",
-    "cf-behavior-list": "node cf-behavior-list.mjs",
-    "test-update-behavior": "node test-update-behavior.mjs"
+    "create-stack-debug": "node inspect create-stack.js"
   },
   "author": "Scott Cytacki",
   "license": "MIT",
-  "engines": {
-    "node": ">=14.8.0"
-  },
   "dependencies": {
-    "aws-sdk": "^2.892.0",
-    "csv-writer": "^1.6.0",
+    "aws-sdk": "^2.328.0",
     "prompts": "^2.4.0",
     "yaml-cfn": "^0.2.0"
   }
