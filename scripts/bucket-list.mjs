@@ -2,6 +2,7 @@
 
 import AWS from 'aws-sdk';
 import CSVWriter from 'csv-writer';
+import { mapFromTagging } from './s3-utils.mjs';
 
 const region = 'us-east-1';
 AWS.config.update({region})
@@ -61,13 +62,7 @@ for (const bucket of data.Buckets) {
     bucketRegion = location.LocationConstraint ? location.LocationConstraint : "us-east-1";
   }
 
-  let tags = null;
-  if (tagging) {
-    tags = {};
-    tagging.TagSet.forEach(entry => {
-      tags[entry.Key] = entry.Value;
-    });
-  }
+  const tags = mapFromTagging(tagging);
 
   // The website endpoint can be either:
   // bucket-name.s3-website-region.amazonaws.com
@@ -79,7 +74,7 @@ for (const bucket of data.Buckets) {
     ...corsFields,
     Website: website ? `http://${bucket.Name}.s3-website.${bucketRegion}.amazonaws.com` : null,
     Region: bucketRegion,
-    Tags: tags ? JSON.stringify(tags) : null,
+    Tags: JSON.stringify(tags),
     Policy: policy ? policy.Policy : null
   });
 }
