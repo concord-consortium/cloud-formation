@@ -65,7 +65,7 @@ Generate a `behaviors.csv` with information about the behaviors of all of the Cl
 
 If you uncomment the last line in the `cf-behavior-list.mjs` file then the script will also update the distributions. This was used to update all behaviors using public S3 buckets so they would use the S3-CORS cache policy.
 
-The update script part of the script looks for distributions meeting the following criteria. It has to have at least one behavior that as all of the following properties:
+The update script part of the script looks for distributions meeting the following criteria. It has to have at least one behavior that has all of the following properties:
 - has a bucket origin (see the BucketName column above)
 - the bucket origin has a BucketType tag of 'public' or 'public-custom-cors'
 - the behavior doesn't already have a CachePolicyId of one of the two S3-CORS cache policies
