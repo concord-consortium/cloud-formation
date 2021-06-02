@@ -1,0 +1,20 @@
+sequenceDiagram
+  autonumber
+  participant Browser
+  participant CloudFront as CloudFront Distribution
+  participant S3 as S3 Bucket
+
+  Browser->>Browser: Decide whether to use CORS
+  Browser->>CloudFront: Request
+  CloudFront->>CloudFront: Check configuration<br/>to compute the cache key<br/>from the request
+  CloudFront->>CloudFront: Check cache for<br/>existing reponse
+
+  rect rgba(0,0,255, 0.1)
+    Note right of CloudFront: Origin Request<br/>(only if cache is invalid)
+    CloudFront->>CloudFront: Check configuration<br/>for which headers to<br/>send to Bucket
+    CloudFront->>S3: Request
+    S3->>S3: Check CORS configuration
+    S3->>CloudFront: Response
+  end
+
+  CloudFront->>Browser: Response

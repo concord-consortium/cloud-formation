@@ -1,0 +1,23 @@
+{
+  "name": "cloud-formation-scripts",
+  "version": "1.0.0",
+  "description": "scripts to make it easier to create and update stacks",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "bucket-list": "node bucket-list.mjs",
+    "bucket-update-tags": "node bucket-update-tags.mjs",
+    "bucket-update-cors": "node bucket-update-cors.mjs",
+    "cf-behavior-list": "node cf-behavior-list.mjs",
+    "test-update-behavior": "node test-update-behavior.mjs"
+  },
+  "author": "Scott Cytacki",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.8.0"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.892.0",
+    "csv-writer": "^1.6.0"
+  }
+}
