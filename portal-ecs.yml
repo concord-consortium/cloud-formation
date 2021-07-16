@@ -47,10 +47,10 @@ Parameters:
     Description: The hostname of the database. Template assumes database name is portal.
   LogStashDbHost:
     Type: String
-    Description: The hostname of a logstash db host. This could be the same as the main
-      DbHost or it can be a read-only copy of the main database.
-      Template assumes database name is portal.
-    AllowedPattern: '.+'
+    Description: The hostname of a logstash db host. If this is blank then logstash will not
+      be deployed. If it is set, it can be the same as the main DbHost or it can be a
+      read-only copy of the main database.
+      The template assumes database name is portal.
   DbPassword:
     Type: String
     Description: The password of the database.
@@ -234,6 +234,8 @@ Parameters:
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
   CreateLoadBalancerHTTPRedirectCond: !Equals [!Ref CreateLoadBalancerHTTPRedirect, 'true']
+  CreateLogStashCond: !Not [!Equals [!Ref LogStashDbHost, ""]]
+
 Resources:
   LoadBalancerStack:
     Type: AWS::CloudFormation::Stack
@@ -578,6 +580,7 @@ Resources:
 
   LogStashExecutionRole:
     Type: AWS::IAM::Role
+    Condition: CreateLogStashCond
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -592,6 +595,7 @@ Resources:
 
   LogStashTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    Condition: CreateLogStashCond
     Properties:
       Family: !Sub "${AWS::StackName}-LogStash"
       # specifiy a execution role that provides access to elastic search
@@ -629,6 +633,7 @@ Resources:
 
   LogStashService:
     Type: AWS::ECS::Service
+    Condition: CreateLogStashCond
     Properties:
       TaskDefinition: !Ref LogStashTaskDefinition
       DesiredCount: '1'
