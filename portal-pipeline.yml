@@ -1,0 +1,219 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Portal Code Pipeline
+
+Parameters:
+  AppServiceName:
+    Type: String
+    Description: The name of the ECS service for the App that the pipeline will update
+  WorkerServiceName:
+    Type: String
+    Description: The name of the ECS service for the Worker that the pipeline will update
+  ReportServiceName:
+    Type: String
+    Description: The name of the ECS service for the Report that the pipeline will update
+  BranchName:
+    Type: String
+    Description: The name of the github branch to automatically deploy
+
+Resources:
+  CodePipelineArtifactStoreBucket:
+    Type: 'AWS::S3::Bucket'
+  CodePipelineArtifactStoreBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref CodePipelineArtifactStoreBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: DenyUnEncryptedObjectUploads
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:PutObject'
+            Resource: !Join
+              - ''
+              - - !GetAtt
+                  - CodePipelineArtifactStoreBucket
+                  - Arn
+                - /*
+            Condition:
+              StringNotEquals:
+                's3:x-amz-server-side-encryption': 'aws:kms'
+          - Sid: DenyInsecureConnections
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: !Join
+              - ''
+              - - !GetAtt
+                  - CodePipelineArtifactStoreBucket
+                  - Arn
+                - /*
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
+
+  AppPipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      Name: codecommit-events-pipeline
+      RoleArn: !GetAtt
+        - CodePipelineServiceRole
+        - Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: 1
+                Provider: CodeStarSourceConnection
+              OutputArtifacts:
+                - Name: SourceArtifact
+              Configuration: !Sub |
+                {
+                  "ConnectionArn": "arn:aws:codestar-connections:us-east-1:816253370536:connection/73546caa-70a8-4125-88a1-edc428c32ad1",
+                  "BranchName": "${BranchName}",
+                  "RepositoryName": "concord-consortium/rigse",
+                  "DetectChanges": true
+                }
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              OutputArtifacts:
+                - Name: BuildArtifact
+              InputArtifacts:
+                - Name: SourceArtifact
+              Configuration: !Sub |
+                {
+                  "ProjectName": "learn-qa",
+                  "EnvironmentVariables": [
+                    {
+                      "name": "BRANCH_NAME",
+                      "value": "${BranchName}",
+                      "type": "PLAINTEXT"
+                    }
+                  ]
+                }
+        - Name: Deploy
+          Actions:
+            - Name: UpdateAppService
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: ECS
+              InputArtifacts:
+                - Name: BuildArtifact
+              Configuration: !Sub |
+                {
+                  "ClusterName": "qa",
+                  "ServiceName": "${AppServiceName}",
+                  "FileName": "app-imagedefinitions.json"
+                }
+            - Name: UpdateWorkerService
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: ECS
+              InputArtifacts:
+                - Name: BuildArtifact
+              Configuration: !Sub |
+                {
+                  "ClusterName": "qa",
+                  "ServiceName": "${WorkerServiceName}",
+                  "FileName": "worker-imagedefinitions.json"
+                }
+            - Name: UpdateReportService
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: ECS
+              InputArtifacts:
+                - Name: BuildArtifact
+              Configuration: !Sub |
+                {
+                  "ClusterName": "qa",
+                  "ServiceName": "${ReportServiceName}",
+                  "FileName": "report-imagedefinitions.json"
+                }
+      ArtifactStore:
+        Type: S3
+        Location: !Ref CodePipelineArtifactStoreBucket
+  CodePipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: AWS-CodePipeline-Service-3
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'codecommit:CancelUploadArchive'
+                  - 'codecommit:GetBranch'
+                  - 'codecommit:GetCommit'
+                  - 'codecommit:GetUploadArchiveStatus'
+                  - 'codecommit:UploadArchive'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codedeploy:CreateDeployment'
+                  - 'codedeploy:GetApplicationRevision'
+                  - 'codedeploy:GetDeployment'
+                  - 'codedeploy:GetDeploymentConfig'
+                  - 'codedeploy:RegisterApplicationRevision'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'devicefarm:ListProjects'
+                  - 'devicefarm:ListDevicePools'
+                  - 'devicefarm:GetRun'
+                  - 'devicefarm:GetUpload'
+                  - 'devicefarm:CreateUpload'
+                  - 'devicefarm:ScheduleRun'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                  - 'lambda:ListFunctions'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'elasticbeanstalk:*'
+                  - 'ec2:*'
+                  - 'elasticloadbalancing:*'
+                  - 'autoscaling:*'
+                  - 'cloudwatch:*'
+                  - 's3:*'
+                  - 'sns:*'
+                  - 'cloudformation:*'
+                  - 'rds:*'
+                  - 'sqs:*'
+                  - 'ecs:*'
+                Resource: '*'
