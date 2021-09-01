@@ -70,13 +70,11 @@ Resources:
                 Provider: CodeStarSourceConnection
               OutputArtifacts:
                 - Name: SourceArtifact
-              Configuration: !Sub |
-                {
-                  "ConnectionArn": "arn:aws:codestar-connections:us-east-1:816253370536:connection/73546caa-70a8-4125-88a1-edc428c32ad1",
-                  "BranchName": "${BranchName}",
-                  "RepositoryName": "concord-consortium/rigse",
-                  "DetectChanges": true
-                }
+              Configuration:
+                ConnectionArn: arn:aws:codestar-connections:us-east-1:816253370536:connection/73546caa-70a8-4125-88a1-edc428c32ad1
+                BranchName: !Ref BranchName
+                FullRepositoryId: concord-consortium/rigse
+                DetectChanges: true
         - Name: Build
           Actions:
             - Name: Build
@@ -89,17 +87,12 @@ Resources:
                 - Name: BuildArtifact
               InputArtifacts:
                 - Name: SourceArtifact
-              Configuration: !Sub |
-                {
-                  "ProjectName": "learn-qa",
-                  "EnvironmentVariables": [
-                    {
-                      "name": "BRANCH_NAME",
-                      "value": "${BranchName}",
-                      "type": "PLAINTEXT"
-                    }
-                  ]
-                }
+              Configuration:
+                ProjectName: learn-qa
+                # EnvironmentVariables:
+                #   - name: BRANCH_NAME
+                #     value: !Ref BranchName
+                #     type: PLAINTEXT
         - Name: Deploy
           Actions:
             - Name: UpdateAppService
@@ -110,12 +103,10 @@ Resources:
                 Provider: ECS
               InputArtifacts:
                 - Name: BuildArtifact
-              Configuration: !Sub |
-                {
-                  "ClusterName": "qa",
-                  "ServiceName": "${AppServiceName}",
-                  "FileName": "app-imagedefinitions.json"
-                }
+              Configuration:
+                ClusterName: qa
+                ServiceName: !Ref AppServiceName
+                FileName: app-imagedefinitions.json
             - Name: UpdateWorkerService
               ActionTypeId:
                 Category: Deploy
@@ -124,12 +115,10 @@ Resources:
                 Provider: ECS
               InputArtifacts:
                 - Name: BuildArtifact
-              Configuration: !Sub |
-                {
-                  "ClusterName": "qa",
-                  "ServiceName": "${WorkerServiceName}",
-                  "FileName": "worker-imagedefinitions.json"
-                }
+              Configuration:
+                ClusterName: qa
+                ServiceName: !Ref WorkerServiceName
+                FileName: worker-imagedefinitions.json
             - Name: UpdateReportService
               ActionTypeId:
                 Category: Deploy
@@ -138,12 +127,10 @@ Resources:
                 Provider: ECS
               InputArtifacts:
                 - Name: BuildArtifact
-              Configuration: !Sub |
-                {
-                  "ClusterName": "qa",
-                  "ServiceName": "${ReportServiceName}",
-                  "FileName": "report-imagedefinitions.json"
-                }
+              Configuration:
+                ClusterName: qa
+                ServiceName: !Ref ReportServiceName
+                FileName: report-imagedefinitions.json
       ArtifactStore:
         Type: S3
         Location: !Ref CodePipelineArtifactStoreBucket
@@ -216,4 +203,5 @@ Resources:
                   - 'rds:*'
                   - 'sqs:*'
                   - 'ecs:*'
+                  - 'codestar-connections:*'
                 Resource: '*'
