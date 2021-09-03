@@ -2,6 +2,10 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Portal or LARA Code Pipeline
 
 Parameters:
+  PipelineName:
+    Type: String
+    Description: This will be used for the name of the pipeline, it typically should be the
+      domain name that is being managed by the pipeline.
   RepoName:
     Type: String
     AllowedValues: [rigse, lara]
@@ -28,7 +32,7 @@ Resources:
   AppPipeline:
     Type: 'AWS::CodePipeline::Pipeline'
     Properties:
-      Name: !Sub "${RepoName}-${BranchName}"
+      Name: !Ref PipelineName
       RoleArn: arn:aws:iam::816253370536:role/service-role/AWSCodePipelineServiceRole-us-east-1-learn-qa
       Stages:
         - Name: Source
