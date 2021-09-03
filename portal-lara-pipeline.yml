@@ -1,7 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Portal Code Pipeline
+Description: Portal or LARA Code Pipeline
 
 Parameters:
+  RepoName:
+    Type: String
+    AllowedValues: [rigse, lara]
+    Description: This will be appended to 'concord-consortium/' to make the full repository name
+      and if it is lara then the report service won't be configured. This will also be used
+      for the CodeBuild project name
   AppServiceName:
     Type: String
     Description: The name of the ECS service for the App that the pipeline will update
@@ -15,11 +21,14 @@ Parameters:
     Type: String
     Description: The name of the github branch to automatically deploy
 
+Conditions:
+  HasReportService: !Equals [!Ref RepoName, "rigse"]
+
 Resources:
   AppPipeline:
     Type: 'AWS::CodePipeline::Pipeline'
     Properties:
-      Name: codecommit-events-pipeline
+      Name: !Sub "${RepoName}-${BranchName}"
       RoleArn: arn:aws:iam::816253370536:role/service-role/AWSCodePipelineServiceRole-us-east-1-learn-qa
       Stages:
         - Name: Source
@@ -35,7 +44,7 @@ Resources:
               Configuration:
                 ConnectionArn: arn:aws:codestar-connections:us-east-1:816253370536:connection/73546caa-70a8-4125-88a1-edc428c32ad1
                 BranchName: !Ref BranchName
-                FullRepositoryId: concord-consortium/rigse
+                FullRepositoryId: !Sub concord-consortium/${RepoName}
                 DetectChanges: true
         - Name: Build
           Actions:
@@ -50,7 +59,7 @@ Resources:
               InputArtifacts:
                 - Name: SourceArtifact
               Configuration:
-                ProjectName: learn-qa
+                ProjectName: !Ref RepoName
                 EnvironmentVariables: !Sub |
                   [{ "name": "BRANCH_NAME",
                      "value": "${BranchName}",
@@ -82,18 +91,21 @@ Resources:
                 ClusterName: qa
                 ServiceName: !Ref WorkerServiceName
                 FileName: worker-imagedefinitions.json
-            - Name: UpdateReportService
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Version: 1
-                Provider: ECS
-              InputArtifacts:
-                - Name: BuildArtifact
-              Configuration:
-                ClusterName: qa
-                ServiceName: !Ref ReportServiceName
-                FileName: report-imagedefinitions.json
+            - !If
+              - HasReportService
+              - Name: UpdateReportService
+                ActionTypeId:
+                  Category: Deploy
+                  Owner: AWS
+                  Version: 1
+                  Provider: ECS
+                InputArtifacts:
+                  - Name: BuildArtifact
+                Configuration:
+                  ClusterName: qa
+                  ServiceName: !Ref ReportServiceName
+                  FileName: report-imagedefinitions.json
+              - !Ref 'AWS::NoValue'
       ArtifactStore:
         Type: S3
         Location: codepipeline-us-east-1-41654313229
