@@ -89,6 +89,10 @@ Parameters:
   DbHost:
     Type: String
     Description: The hostname of the database. Template assumes database name is portal.
+  DbName:
+    Type: String
+    Description: The name of the database in the database host
+    Default: portal
   DbPassword:
     Type: String
     Description: The password of the database. Template assumes username is master.
@@ -160,7 +164,7 @@ Parameters:
     Default: https://activity-player.concord.org
   ConversionScriptURL:
     Type: String
-    Description: URL of script to create an Activity Player compatible version of 
+    Description: URL of script to create an Activity Player compatible version of
       resources by converting old embeddables to library interactives
     Default: https://models-resources.concord.org/question-interactives/branch/master/convert-old-lara/?lara_root=https://authoring.concord.org&template=https://authoring.concord.org/api/v1/activities/11354.json
 
@@ -582,7 +586,7 @@ Resources:
         - Name: DB_HOST
           Value: !Ref DbHost
         - Name: DB_NAME
-          Value: portal
+          Value: !Ref DbName
         - Name: DB_PASSWORD
           Value: !Ref DbPassword
         - Name: DB_USER
@@ -939,7 +943,7 @@ Resources:
         - Name: DB_HOST
           Value: !Ref DbHost
         - Name: DB_NAME
-          Value: portal
+          Value: !Ref DbName
         - Name: DB_PASSWORD
           Value: !Ref DbPassword
         - Name: DB_USER
