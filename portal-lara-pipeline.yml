@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Portal or LARA Code Pipeline
+
+Parameters:
+  PipelineName:
+    Type: String
+    Description: This will be used for the name of the pipeline, it typically should be the
+      domain name that is being managed by the pipeline.
+  RepoName:
+    Type: String
+    AllowedValues: [rigse, lara]
+    Description: This will be appended to 'concord-consortium/' to make the full repository name
+      and if it is lara then the report service won't be configured. This will also be used
+      for the CodeBuild project name
+  AppServiceName:
+    Type: String
+    Description: The name of the ECS service for the App that the pipeline will update
+  WorkerServiceName:
+    Type: String
+    Description: The name of the ECS service for the Worker that the pipeline will update
+  ReportServiceName:
+    Type: String
+    Description: The name of the ECS service for the Report that the pipeline will update
+  BranchName:
+    Type: String
+    Description: The name of the github branch to automatically deploy
+
+Conditions:
+  HasReportService: !Equals [!Ref RepoName, "rigse"]
+
+Resources:
+  AppPipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      Name: !Ref PipelineName
+      RoleArn: arn:aws:iam::816253370536:role/service-role/AWSCodePipelineServiceRole-us-east-1-learn-qa
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: 1
+                Provider: CodeStarSourceConnection
+              OutputArtifacts:
+                - Name: SourceArtifact
+              Configuration:
+                ConnectionArn: arn:aws:codestar-connections:us-east-1:816253370536:connection/73546caa-70a8-4125-88a1-edc428c32ad1
+                BranchName: !Ref BranchName
+                FullRepositoryId: !Sub concord-consortium/${RepoName}
+                DetectChanges: true
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              OutputArtifacts:
+                - Name: BuildArtifact
+              InputArtifacts:
+                - Name: SourceArtifact
+              Configuration:
+                ProjectName: !Ref RepoName
+                EnvironmentVariables: !Sub |
+                  [{ "name": "BRANCH_NAME",
+                     "value": "${BranchName}",
+                     "type": "PLAINTEXT"
+                   }]
+        - Name: Deploy
+          Actions:
+            - Name: UpdateAppService
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: ECS
+              InputArtifacts:
+                - Name: BuildArtifact
+              Configuration:
+                ClusterName: qa
+                ServiceName: !Ref AppServiceName
+                FileName: app-imagedefinitions.json
+            - Name: UpdateWorkerService
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: ECS
+              InputArtifacts:
+                - Name: BuildArtifact
+              Configuration:
+                ClusterName: qa
+                ServiceName: !Ref WorkerServiceName
+                FileName: worker-imagedefinitions.json
+            - !If
+              - HasReportService
+              - Name: UpdateReportService
+                ActionTypeId:
+                  Category: Deploy
+                  Owner: AWS
+                  Version: 1
+                  Provider: ECS
+                InputArtifacts:
+                  - Name: BuildArtifact
+                Configuration:
+                  ClusterName: qa
+                  ServiceName: !Ref ReportServiceName
+                  FileName: report-imagedefinitions.json
+              - !Ref 'AWS::NoValue'
+      ArtifactStore:
+        Type: S3
+        Location: codepipeline-us-east-1-41654313229
