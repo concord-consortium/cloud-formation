@@ -142,6 +142,10 @@ Parameters:
     Type: String
     Description: URL to the report service for importing activity structure
     Default: https://us-central1-report-service-dev.cloudfunctions.net/api
+  ReportUrl:
+    Type: String
+    Description: URL for the portal-report to use for student report buttons in LARA
+    Default: https://portal-report.concord.org/branch/master/index.html
   ShutterbugURI:
     Type: String
     Description: URI for the shutterbug service
@@ -160,7 +164,7 @@ Parameters:
     Default: https://activity-player.concord.org
   ConversionScriptURL:
     Type: String
-    Description: URL of script to create an Activity Player compatible version of 
+    Description: URL of script to create an Activity Player compatible version of
       resources by converting old embeddables to library interactives
     Default: https://models-resources.concord.org/question-interactives/branch/master/convert-old-lara/?lara_root=https://authoring.concord.org&template=https://authoring.concord.org/api/v1/activities/11354.json
 
@@ -633,6 +637,8 @@ Resources:
           Value: !Ref ReportServiceURL
         - Name: REPORT_SERVICE_SELF_URL
           Value: !Sub 'https://${HostName}.${DomainNameBase}'
+        - Name: REPORT_URL
+          Value: !Ref ReportUrl
         - Name: SHUTTERBUG_URI
           Value: !Ref ShutterbugURI
         - Name: ACTIVITY_PLAYER_URL
@@ -972,6 +978,8 @@ Resources:
           Value: !Ref ReportServiceURL
         - Name: REPORT_SERVICE_SELF_URL
           Value: !Sub 'https://${HostName}.${DomainNameBase}'
+        - Name: REPORT_URL
+          Value: !Ref ReportUrl
         - Name: ACTIVITY_PLAYER_URL
           Value: !Ref ActivityPlayerURL
         - Name: CONVERSION_SCRIPT_URL
@@ -1034,6 +1042,7 @@ Metadata:
       - LaraDockerImage
       - ActivityPlayerURL
       - ConversionScriptURL
+      - ReportUrl
       - CRaterPassword
       - CRaterUrl
       - CRaterApiKey
