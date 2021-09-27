@@ -8,11 +8,12 @@ Parameters:
     Default: fargate-public-network
     Description: The name of the parent Fargate networking stack that you created. Necessary
                  to locate and reference resources created by that stack.
-  LogIngesterStackName:
-    Type: String
-    Description: The name of the log ingester stack
-    Default: log-ingester-staging
-    AllowedValues: [log-ingester-production, log-ingester-staging]
+  # NOT NEEDED TO HEROKU DB - UNCOMMENT WHEN/IF BRINGING BACK LOG INGESTER
+  # LogIngesterStackName:
+  #   Type: String
+  #   Description: The name of the log ingester stack
+  #   Default: log-ingester-staging
+  #   AllowedValues: [log-ingester-production, log-ingester-staging]
   ServiceName:
     Type: String
     Default: log-puller
@@ -158,17 +159,18 @@ Resources:
         Fn::ImportValue:
           !Join [':', [!Ref 'StackName', 'VPCId']]
 
-  ServiceDBIngress:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: Adds ECS service to RDS security group
-      GroupId:
-        Fn::ImportValue:
-          !Join [':', [!Ref 'LogIngesterStackName', 'RdsSecurityGroup']]
-      IpProtocol: tcp
-      FromPort: 5432
-      ToPort: 5432
-      SourceSecurityGroupId: !Ref ServiceSecurityGroup
+  # NOT NEEDED TO HEROKU DB - UNCOMMENT WHEN/IF BRINGING BACK LOG INGESTER
+  # ServiceDBIngress:
+  #   Type: AWS::EC2::SecurityGroupIngress
+  #   Properties:
+  #     Description: Adds ECS service to RDS security group
+  #     GroupId:
+  #       Fn::ImportValue:
+  #         !Join [':', [!Ref 'LogIngesterStackName', 'RdsSecurityGroup']]
+  #     IpProtocol: tcp
+  #     FromPort: 5432
+  #     ToPort: 5432
+  #     SourceSecurityGroupId: !Ref ServiceSecurityGroup
 
   # A target group. This is used for keeping track of all the tasks, and
   # what IP addresses / port numbers they have. You can query it yourself,
