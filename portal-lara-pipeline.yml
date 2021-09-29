@@ -113,3 +113,17 @@ Resources:
       ArtifactStore:
         Type: S3
         Location: codepipeline-us-east-1-41654313229
+  AppNotificationRule:
+    Type: AWS::CodeStarNotifications::NotificationRule
+    Properties:
+      DetailType: FULL
+      EventTypeIds:
+        - codepipeline-pipeline-pipeline-execution-failed
+        - codepipeline-pipeline-pipeline-execution-succeeded
+      Name: Slack
+      Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${AppPipeline}
+      # even though the name of this configuration is portal-lara-dev it actually
+      # sends messages to the portal-lara-deploys channel
+      Targets:
+        - TargetAddress: arn:aws:chatbot::816253370536:chat-configuration/slack-channel/portal-lara-dev
+          TargetType: AWSChatbotSlack
