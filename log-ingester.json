@@ -1,0 +1,593 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Log Ingester stack",
+  "Parameters": {
+    "Environment": {
+      "Type": "String",
+      "Description": "Enter qa, staging or production. Default is qa.",
+      "Default": "qa",
+      "AllowedValues" : ["qa", "staging", "production"]
+    }
+  },
+
+  "Resources": {
+
+    "LogIngesterBucket": {
+      "Metadata" : {
+        "Purpose": "Stores data from Firehose writes and Athena results"
+      },
+      "Type" : "AWS::S3::Bucket",
+      "Properties" : {
+        "BucketName" : {"Fn::Join": ["-", ["log-ingester", {"Ref": "Environment"}]]},
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration" : [{
+            "ServerSideEncryptionByDefault" : {
+              "SSEAlgorithm" : "AES256"
+            }
+          }]
+        }
+      }
+    },
+
+    "LogIngesterKinesisFirehose": {
+      "Metadata" : {
+        "Purpose": "Used by API to store data to S3 bucket"
+      },
+      "DependsOn": ["LogIngesterLogGroup"],
+      "Type" : "AWS::KinesisFirehose::DeliveryStream",
+      "Properties" : {
+        "DeliveryStreamName" : {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]},
+        "ExtendedS3DestinationConfiguration" : {
+          "BucketARN" : {"Fn::GetAtt" : ["LogIngesterBucket", "Arn"]},
+          "BufferingHints" : {
+            "IntervalInSeconds" : 60,
+            "SizeInMBs" : 64
+          },
+          "CloudWatchLoggingOptions" : {
+            "Enabled" : true,
+            "LogGroupName" : {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]},
+            "LogStreamName" : {"Fn::Join": ["_", ["log_ingester_processed_logs", {"Ref": "Environment"}]]}
+          },
+          "CompressionFormat" : "UNCOMPRESSED",
+          "DataFormatConversionConfiguration": {
+            "Enabled": true,
+            "InputFormatConfiguration": {
+              "Deserializer": {
+                "HiveJsonSerDe": {}
+              }
+            },
+            "OutputFormatConfiguration": {
+              "Serializer": {
+                "ParquetSerDe": {
+                  "Compression": "SNAPPY"
+                }
+              }
+            },
+            "SchemaConfiguration": {
+              "CatalogId": { "Ref" : "AWS::AccountId" },
+              "DatabaseName": {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]},
+              "RoleARN": {"Fn::GetAtt" : ["LogIngesterKinesisFirehoseRole", "Arn"]},
+              "TableName": "logs_by_time"
+            }
+          },
+          "Prefix" : "processed_logs/",
+          "ProcessingConfiguration" : {
+            "Enabled" : true,
+            "Processors" : [{
+              "Parameters" : [{
+                "ParameterName" : "LambdaArn",
+                "ParameterValue" : {"Fn::GetAtt" : ["LogIngesterKinesisFirehoseLambda", "Arn"]}
+              }],
+              "Type" : "Lambda"
+            }]
+          },
+          "RoleARN" : {"Fn::GetAtt" : ["LogIngesterKinesisFirehoseRole", "Arn"]},
+          "S3BackupConfiguration" : {
+            "BucketARN" : {"Fn::GetAtt" : ["LogIngesterBucket", "Arn"]},
+            "BufferingHints" : {
+              "IntervalInSeconds" : 60,
+              "SizeInMBs" : 6
+            },
+            "CloudWatchLoggingOptions" : {
+              "Enabled" : true,
+              "LogGroupName" : {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]},
+              "LogStreamName" : {"Fn::Join": ["_", ["log_ingester_raw_logs", {"Ref": "Environment"}]]}
+            },
+            "CompressionFormat" : "GZIP",
+            "Prefix" : "raw_logs/",
+            "RoleARN" : {"Fn::GetAtt" : ["LogIngesterKinesisFirehoseRole", "Arn"]}
+          },
+          "S3BackupMode" : "Enabled"
+        }
+      }
+    },
+
+    "LogIngesterKinesisFirehoseLambda": {
+      "Metadata" : {
+        "Purpose": "Used by Kinesis Firehose to transform log data into schema"
+      },
+      "Type" : "AWS::Lambda::Function",
+      "Properties" : {
+        "Code" : {"ZipFile": {"Fn::Join": ["\n", [
+          "'use strict';",
+          "",
+          "const mapify = (obj) => {",
+          "  const map = {};",
+          "  Object.keys(obj).forEach((key) => {",
+          "    const value = obj[key];",
+          "    map[key] = typeof value === 'string' ? value : JSON.stringify(value);",
+          "  })",
+          "  return map;",
+          "};",
+          "",
+          "const canonicalize = (rawData, timestamp) => {",
+          "  const data = {};",
+          "  ['session', 'username', 'application', 'activity', 'event'].forEach((col) => {",
+          "    data[col] = rawData.hasOwnProperty(col) ? String(rawData[col]) : null;",
+          "  })",
+          "  data.time = 0;",
+          "  if (rawData.hasOwnProperty('time')) {",
+          "    data.time = Math.round(rawData.time / 1000);",
+          "  }",
+          "  if ((data.time === 0) || isNaN(data.time)) {",
+          "    data.time = Math.round(timestamp / 1000);",
+          "  }",
+          "  data.parameters = JSON.stringify(rawData.parameters || {});",
+          "  var extras = {};",
+          "  Object.keys(rawData).forEach((key) => {",
+          "    if (!data.hasOwnProperty(key)) {",
+          "      extras[key] = rawData[key]",
+          "    }",
+          "  });",
+          "  data.extras = JSON.stringify(extras);",
+          "  data.timestamp = timestamp;",
+          "  return data;",
+          "};",
+          "",
+          "exports.handler = (event, context, callback) => {",
+          "    let success = 0;",
+          "    let failure = 0;",
+
+          "    /* Process the list of records and transform them */",
+          "    const output = event.records.map((record) => {",
+          "        // Kinesis data is base64 encoded so decode here",
+          "        const payload = new Buffer(record.data, 'base64').toString('ascii');",
+          "        // payload looks like <timestamp>;<json> where <timestamp> is added by the API gateway transform",
+          "        const payloadParts = payload.split(';')",
+          "        const timestamp = parseInt(payloadParts.shift(), 10)",
+          "        try {",
+          "            const json = JSON.parse(payloadParts.join(';'))",
+          "            success++;",
+          "            return {",
+          "                recordId: record.recordId,",
+          "                result: 'Ok',",
+          "                data: new Buffer(JSON.stringify(canonicalize(json, timestamp)) + '\\n').toString('base64'),",
+          "            };",
+          "        }",
+          "        catch (e) {",
+          "            failure++;",
+          "            return {",
+          "                recordId: record.recordId,",
+          "                result: 'ProcessingFailed',",
+          "                data: record.data,",
+          "            };",
+          "        }",
+          "    });",
+          "    callback(null, { records: output });",
+          "};"
+        ]]}},
+        "Description" : "Transforms log ingester API gateway payloads",
+        "Handler" : "index.handler",
+        "MemorySize" : 128,
+        "Role" : {"Fn::GetAtt" : ["LogIngesterKinesisFirehoseLambdaRole", "Arn"]},
+        "Runtime" : "nodejs14.x",
+        "Timeout" : 60
+      }
+    },
+
+    "LogIngesterLogGroup": {
+      "Metadata" : {
+        "Purpose": "Used by all log ingester services for logging"
+      },
+      "Type" : "AWS::Logs::LogGroup",
+      "Properties" : {
+        "LogGroupName" : {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]}
+      }
+    },
+
+    "LogIngesterKinesisFirehoseProcessedLogsStream": {
+      "Metadata" : {
+        "Purpose": "Used by Kinesis Firehose to log processed logs"
+      },
+      "DependsOn": ["LogIngesterLogGroup"],
+      "Type" : "AWS::Logs::LogStream",
+      "Properties" : {
+        "LogGroupName" : {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]},
+        "LogStreamName": {"Fn::Join": ["_", ["log_ingester_processed_logs", {"Ref": "Environment"}]]}
+      }
+    },
+
+    "LogIngesterKinesisFirehoseRawLogsStream": {
+      "Metadata" : {
+        "Purpose": "Used by Kinesis Firehose to log raw logs"
+      },
+      "DependsOn": ["LogIngesterLogGroup"],
+      "Type" : "AWS::Logs::LogStream",
+      "Properties" : {
+        "LogGroupName" : {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]},
+        "LogStreamName": {"Fn::Join": ["_", ["log_ingester_raw_logs", {"Ref": "Environment"}]]}
+      }
+    },
+
+    "LogAPIGateway": {
+      "Metadata" : {
+        "Purpose": "Used by Kinesis Firehose to log raw log entries"
+      },
+      "Type" : "AWS::ApiGateway::RestApi",
+      "Properties" : {
+        "Name" : {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]},
+        "ApiKeySourceType" : "HEADER",
+        "Description" : "Accepts JSON post bodies and proxies them to Firehose",
+        "EndpointConfiguration" : {
+          "Types": ["EDGE"]
+        },
+        "FailOnWarnings" : true
+      }
+    },
+
+    "LogAPIGatewayAccount": {
+      "Type": "AWS::ApiGateway::Account",
+      "Properties": {
+        "CloudWatchRoleArn": {"Fn::GetAtt": ["LogAPIGatewayCloudWatchLogsRole", "Arn"] }
+      }
+    },
+
+    "LogAPIGatewayCloudWatchLogsRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": { "Service": ["apigateway.amazonaws.com"] },
+            "Action": ["sts:AssumeRole"]
+          }]
+        },
+        "Path": "/",
+        "ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"]
+      }
+    },
+
+    "LogAPIGatewayStage": {
+      "DependsOn": ["LogAPIGatewayAccount"],
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "DeploymentId": {"Ref": "LogAPIGatewayDeployment"},
+        "MethodSettings": [{
+          "DataTraceEnabled": true,
+          "HttpMethod": "*",
+          "LoggingLevel": "INFO",
+          "ResourcePath": "/*"
+        }],
+        "RestApiId": {"Ref": "LogAPIGateway"},
+        "StageName": "latest"
+      }
+    },
+
+    "LogAPIGatewayDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": ["LogAPIGatewayLogOptionsRequest", "LogAPIGatewayLogPostRequest"],
+      "Properties": {
+        "RestApiId": {"Ref": "LogAPIGateway"},
+        "StageName": "dummy"
+      }
+    },
+
+    "LogAPIGatewayLogResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {"Ref": "LogAPIGateway"},
+        "ParentId": {"Fn::GetAtt": ["LogAPIGateway", "RootResourceId"]},
+        "PathPart": "logs"
+      }
+    },
+
+    "LogAPIGatewayLogOptionsRequest": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "AuthorizationType": "NONE",
+        "HttpMethod" : "OPTIONS",
+        "Integration": {
+          "IntegrationResponses" : [{
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+              "method.response.header.Access-Control-Allow-Methods": "'POST,OPTIONS'",
+              "method.response.header.Access-Control-Allow-Origin": "'*'"
+            },
+            "StatusCode" : 200
+          }],
+          "PassthroughBehavior" : "WHEN_NO_MATCH",
+          "RequestTemplates" : {
+            "application/json":  "{\"statusCode\": 200}"
+          },
+          "Type" : "MOCK"
+        },
+        "MethodResponses" : [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true
+            },
+            "StatusCode": 200
+          }
+        ],
+        "ResourceId" : {"Ref": "LogAPIGatewayLogResource"},
+        "RestApiId" : {"Ref": "LogAPIGateway"}
+      }
+    },
+
+    "LogAPIGatewayLogPostRequest": {
+      "DependsOn": ["LogIngesterKinesisFirehose"],
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "AuthorizationType": "NONE",
+        "HttpMethod" : "POST",
+        "Integration" : {
+          "Credentials" : {"Fn::GetAtt" : ["LogAPIGatewayLogPostRequestRole", "Arn"]},
+          "IntegrationHttpMethod" : "POST",
+          "IntegrationResponses" : [
+            {
+              "SelectionPattern" : "200",
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Origin": "'*'"
+              },
+              "StatusCode" : 201
+            },
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Origin": "'*'"
+              },
+              "StatusCode" : 200
+            }
+          ],
+          "PassthroughBehavior" : "WHEN_NO_TEMPLATES",
+          "RequestTemplates" : {
+            "application/json":  {"Fn::Join": ["", [
+              "#set($semicolon =';')\n",
+              "#set($data = \"$context.requestTimeEpoch$semicolon$input.json('$')\")\n",
+              "{\n",
+              "    \"DeliveryStreamName\": \"", {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]}, "\",\n",
+              "    \"Record\": {\n",
+              "        \"Data\": \"$util.base64Encode($data)\"\n",
+              "    }\n",
+              "}\n"
+            ]]}
+          },
+          "Type" : "AWS",
+          "Uri": {"Fn::Join": ["", ["arn:aws:apigateway:", {"Ref": "AWS::Region"}, ":firehose:action/PutRecord"]]}
+        },
+        "MethodResponses" : [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Origin": true
+            },
+            "StatusCode": 200
+          },
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Origin": true
+            },
+            "StatusCode": 201
+          }
+        ],
+        "ResourceId" : {"Ref": "LogAPIGatewayLogResource"},
+        "RestApiId" : {"Ref": "LogAPIGateway"}
+      }
+    },
+
+    "LogIngesterKinesisFirehoseLambdaRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": [ "lambda.amazonaws.com" ]
+            },
+            "Action": [ "sts:AssumeRole" ]
+          }]
+        },
+        "Path": "/service-role/",
+        "Policies": [{
+          "PolicyName": {"Fn::Join": ["_", ["log_ingester_firehose_lamda", {"Ref": "Environment"}]]},
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              "Resource": [
+                {"Fn::Join": ["", [{"Fn::GetAtt" : ["LogIngesterLogGroup", "Arn"]}, ":*"]]}
+              ]
+            }]
+          }
+        }],
+        "RoleName": {"Fn::Join": ["_", ["log_ingester_firehose_lamda", {"Ref": "Environment"}]]}
+      }
+    },
+
+    "LogIngesterKinesisFirehoseRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": { "Service": ["firehose.amazonaws.com"] },
+            "Action": ["sts:AssumeRole"]
+          }]
+        },
+        "Path": "/",
+        "Policies": [{
+          "PolicyName": {"Fn::Join": ["_", ["log_ingester_firehose", {"Ref": "Environment"}]]},
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "glue:GetTableVersions"
+                ],
+                "Resource": "*"
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "s3:AbortMultipartUpload",
+                  "s3:GetBucketLocation",
+                  "s3:GetObject",
+                  "s3:ListBucket",
+                  "s3:ListBucketMultipartUploads",
+                  "s3:PutObject"
+                ],
+                "Resource": [
+                  {"Fn::GetAtt" : ["LogIngesterBucket", "Arn"]},
+                  {"Fn::Join": ["", [{"Fn::GetAtt" : ["LogIngesterBucket", "Arn"]}, "/*"]]}
+                ]
+              },
+              {
+                "Sid": "",
+                "Effect": "Allow",
+                "Action": [
+                  "lambda:InvokeFunction",
+                  "lambda:GetFunctionConfiguration"
+                ],
+                "Resource": {"Fn::Join": ["", [{"Fn::GetAtt" : ["LogIngesterKinesisFirehoseLambda", "Arn"]}, "*"]]}
+              },
+              {
+                "Sid": "",
+                "Effect": "Allow",
+                "Action": [
+                  "logs:PutLogEvents"
+                ],
+                "Resource": [{"Fn::GetAtt" : ["LogIngesterLogGroup", "Arn"]}]
+              },
+              {
+                "Sid": "",
+                "Effect": "Allow",
+                "Action": [
+                  "kinesis:DescribeStream",
+                  "kinesis:GetShardIterator",
+                  "kinesis:GetRecords"
+                ],
+                "Resource": {"Fn::Join": ["", ["arn:aws:kinesis:", {"Ref": "AWS::Region"}, ":", {"Ref": "AWS::AccountId"}, ":stream/", {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]}]]}
+              }
+            ]
+          }
+        }],
+        "RoleName": {"Fn::Join": ["_", ["log_ingester_firehose", {"Ref": "Environment"}]]}
+      }
+    },
+
+    "LogAPIGatewayLogPostRequestRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": { "Service": ["apigateway.amazonaws.com"] },
+            "Action": ["sts:AssumeRole"]
+          }]
+        },
+        "Path": "/",
+        "Policies": [{
+          "PolicyName": {"Fn::Join": ["_", ["log_ingester_api_log_post", {"Ref": "Environment"}]]},
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Effect": "Allow",
+              "Action": [
+                "firehose:*"
+              ],
+              "Resource": "*"
+            }]
+          }
+        }],
+        "RoleName": {"Fn::Join": ["_", ["log_ingester_api_log_post", {"Ref": "Environment"}]]}
+      }
+    },
+
+    "LogIngesterDatabase": {
+      "Type" : "AWS::Glue::Database",
+      "Properties" : {
+        "CatalogId" : { "Ref" : "AWS::AccountId" },
+        "DatabaseInput" : {
+          "Description" : "Log Ingester Database",
+          "Name" : {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]}
+        }
+      }
+    },
+
+    "LogIngesterLogsTable": {
+      "Type" : "AWS::Glue::Table",
+      "DependsOn" : "LogIngesterDatabase",
+      "Properties" : {
+        "CatalogId" : { "Ref" : "AWS::AccountId" },
+        "DatabaseName" : {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]},
+        "TableInput" : {
+          "Description" : "Log Ingester Logs",
+          "Name" : "logs_by_time",
+          "Parameters": {
+            "classification": "parquet",
+            "compressionType": "none",
+            "typeOfData": "file"
+          },
+          "StorageDescriptor": {
+            "Columns" : [
+              {"Name" : "session", "Type": "string"},
+              {"Name" : "username", "Type": "string"},
+              {"Name" : "application", "Type": "string"},
+              {"Name" : "activity", "Type": "string"},
+              {"Name" : "event", "Type": "string"},
+              {"Name" : "time", "Type": "int"},
+              {"Name" : "parameters", "Type": "string"},
+              {"Name" : "extras", "Type": "string"},
+              {"Name" : "timestamp", "Type": "bigint"}
+            ],
+            "Compressed" : false,
+            "NumberOfBuckets": -1,
+            "BucketColumns": [],
+            "Parameters": {
+              "classification": "parquet",
+              "compressionType": "none",
+              "typeOfData": "file"
+            },
+            "InputFormat" : "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+            "Location" : {"Fn::Sub": ["s3://log-ingester-${Environment}/processed_logs/", {"Environment": {"Ref": "Environment"}}]},
+            "OutputFormat" : "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+            "SerdeInfo" : {
+              "SerializationLibrary" : "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe",
+              "Parameters": {
+                "serialization.format": "1"
+              }
+            },
+            "StoredAsSubDirectories" : false
+          },
+          "TableType": "EXTERNAL_TABLE"
+        }
+      }
+    }
+  },
+
+  "Outputs": {
+    "LoggingUrl": {
+      "Description": "Logging URL of the API gateway",
+      "Value": {"Fn::Join": ["", ["https://", {"Ref": "LogAPIGateway"}, ".execute-api.", {"Ref": "AWS::Region"}, ".amazonaws.com/latest/logs"]]}
+    }
+  }
+}
