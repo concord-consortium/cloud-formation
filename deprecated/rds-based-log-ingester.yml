@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 
-Description: RDS based kog ingester stack (DEPRECATED)
+Description: RDS based log ingester stack (DEPRECATED)
 
 Parameters:
   Environment:
