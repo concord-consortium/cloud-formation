@@ -1,7 +1,7 @@
 # adapted from https://github.com/nathanpeck/aws-cloudformation-fargate/
 
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Deploy JSON Log Ingester on AWS Fargate, hosted in a public subnet, and accessible via a public load balancer.
+Description: Deploy JSON Log Ingester on AWS Fargate, hosted in a public subnet, and accessible via a public load balancer. (DEPRECATED)
 Parameters:
   StackName:
     Type: String
