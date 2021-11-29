@@ -33,7 +33,7 @@
       "Metadata" : {
         "Purpose": "Used by API to store data to S3 bucket"
       },
-      "DependsOn": ["LogIngesterLogGroup"],
+      "DependsOn": ["LogIngesterLogGroup", "LogIngesterLogsTable"],
       "Type" : "AWS::KinesisFirehose::DeliveryStream",
       "Properties" : {
         "DeliveryStreamName" : {"Fn::Join": ["_", ["log_ingester", {"Ref": "Environment"}]]},
@@ -122,7 +122,7 @@
           "",
           "const canonicalize = (rawData, timestamp) => {",
           "  const data = {};",
-          "  ['session', 'username', 'application', 'activity', 'event'].forEach((col) => {",
+          "  ['session', 'username', 'application', 'activity', 'event', 'run_remote_endpoint'].forEach((col) => {",
           "    data[col] = rawData.hasOwnProperty(col) ? String(rawData[col]) : null;",
           "  })",
           "  data.time = 0;",
@@ -557,6 +557,7 @@
               {"Name" : "time", "Type": "int"},
               {"Name" : "parameters", "Type": "string"},
               {"Name" : "extras", "Type": "string"},
+              {"Name" : "run_remote_endpoint", "Type": "string"},
               {"Name" : "timestamp", "Type": "bigint"}
             ],
             "Compressed" : false,
