@@ -7,6 +7,11 @@
       "Description": "Enter qa, staging or production. Default is qa.",
       "Default": "qa",
       "AllowedValues" : ["qa", "staging", "production"]
+    },
+    "KinesisTransformFunctionName": {
+      "Type": "String",
+      "Description": "Enter name to use for Kinesis transform function (this needs to change if lambda code is updated)",
+      "Default": "log_ingester_transform"
     }
   },
 
@@ -176,6 +181,7 @@
           "    callback(null, { records: output });",
           "};"
         ]]}},
+        "FunctionName": {"Ref": "KinesisTransformFunctionName"},
         "Description" : "Transforms log ingester API gateway payloads",
         "Handler" : "index.handler",
         "MemorySize" : 128,
@@ -401,22 +407,28 @@
         },
         "Path": "/service-role/",
         "Policies": [{
-          "PolicyName": {"Fn::Join": ["_", ["log_ingester_firehose_lamda", {"Ref": "Environment"}]]},
+          "PolicyName": {"Fn::Join": ["_", ["log_ingester_firehose_lambda", {"Ref": "Environment"}]]},
           "PolicyDocument": {
             "Version": "2012-10-17",
-            "Statement": [{
-              "Effect": "Allow",
-              "Action": [
-                "logs:CreateLogStream",
-                "logs:PutLogEvents"
+            "Statement": [
+              {
+                  "Effect": "Allow",
+                  "Action": "logs:CreateLogGroup",
+                  "Resource": {"Fn::Join": ["", ["arn:aws:logs:", {"Ref": "AWS::Region"}, ":", {"Ref": "AWS::AccountId"}, ":*"]]}
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "logs:CreateLogStream",
+                  "logs:PutLogEvents"
               ],
               "Resource": [
-                {"Fn::Join": ["", [{"Fn::GetAtt" : ["LogIngesterLogGroup", "Arn"]}, ":*"]]}
+                {"Fn::Join": ["", ["arn:aws:logs:", {"Ref": "AWS::Region"}, ":", {"Ref": "AWS::AccountId"}, ":log-group:/aws/lambda/", {"Ref": "KinesisTransformFunctionName"}, ":*"]]}
               ]
             }]
           }
         }],
-        "RoleName": {"Fn::Join": ["_", ["log_ingester_firehose_lamda", {"Ref": "Environment"}]]}
+        "RoleName": {"Fn::Join": ["_", ["log_ingester_firehose_lambda", {"Ref": "Environment"}]]}
       }
     },
 
