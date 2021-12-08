@@ -127,7 +127,7 @@
           "",
           "const canonicalize = (rawData, timestamp) => {",
           "  const data = {};",
-          "  ['session', 'username', 'application', 'activity', 'event', 'run_remote_endpoint'].forEach((col) => {",
+          "  ['session', 'username', 'application', 'activity', 'event', 'event_value', 'run_remote_endpoint'].forEach((col) => {",
           "    data[col] = rawData.hasOwnProperty(col) ? String(rawData[col]) : null;",
           "  })",
           "  data.time = 0;",
@@ -171,6 +171,10 @@
           "        }",
           "        catch (e) {",
           "            failure++;",
+          "            console.log('ERROR:START');",
+          "            console.error(e.toString());",
+          "            console.error(e);",
+          "            console.log('ERROR:END');",
           "            return {",
           "                recordId: record.recordId,",
           "                result: 'ProcessingFailed',",
@@ -428,7 +432,7 @@
             }]
           }
         }],
-        "RoleName": {"Fn::Join": ["_", ["log_ingester_firehose_lambda", {"Ref": "Environment"}]]}
+        "RoleName": {"Fn::Join": ["_", ["log_ingester", {"Ref": "KinesisTransformFunctionName"}, {"Ref": "Environment"}]]}
       }
     },
 
@@ -566,7 +570,8 @@
               {"Name" : "application", "Type": "string"},
               {"Name" : "activity", "Type": "string"},
               {"Name" : "event", "Type": "string"},
-              {"Name" : "time", "Type": "int"},
+              {"Name" : "event_value", "Type": "string"},
+              {"Name" : "time", "Type": "bigint"},
               {"Name" : "parameters", "Type": "string"},
               {"Name" : "extras", "Type": "string"},
               {"Name" : "run_remote_endpoint", "Type": "string"},
