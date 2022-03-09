@@ -60,6 +60,15 @@ Resources:
       Name: !Sub '${ProjectName}.${AwsAccountDomain}'
       Type: A
 
+  # The recommendation is for there to only be one OAI for all of CloudFront.
+  # This is because there is a limit of 100 OAIs. 
+  # But doing that would make the setup harder. So for now we just make a new
+  # one for each distribution we setup.  
+  # If we need to share the OAI in the future I'd recommend keeping this
+  # resource definition here and just make it conditional. So the stack can have
+  # a param specifying a external shared OAI but if not then the stack will just
+  # create one. This will mean we'd have to construct the canonical
+  # user from the id instead of just getting it out of the resource
   CloudFrontOriginAccessIdentity:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
@@ -67,15 +76,13 @@ Resources:
         Comment: !Sub
           - "${BucketName}-OAI"
           - BucketName: !FindInMap [BucketNameMap, !Ref 'AwsAccountDomain', Name]
-  # FIXME: This is setting up a single policy for the bucket, if multiple instances
-  # of this stack are deployed, they will overwrite each others. I think the best
-  # fix is to use S3 access points. Then each private distribution can have its
-  # own access point to the private bucket with its a separate policy
-  S3AccessPolicyForOAI:
-    Type: AWS::S3::BucketPolicy
+  
+  S3AccessPoint:
+    Type: AWS::S3::AccessPoint
     Properties:
       Bucket: !FindInMap [BucketNameMap, !Ref 'AwsAccountDomain', Name]
-      PolicyDocument:
+      Name: !Sub "${ProjectName}-access-point"
+      Policy:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
@@ -83,9 +90,14 @@ Resources:
               CanonicalUser:
                 Fn::GetAtt: [ CloudFrontOriginAccessIdentity , S3CanonicalUserId ]
             Action: "s3:GetObject"
-            Resource: !Sub
-              - "arn:aws:s3:::${BucketName}/${ProjectName}/*"
-              - BucketName: !FindInMap [BucketNameMap, !Ref 'AwsAccountDomain', Name]
+            # This ARN is weird. I basically took it from here:
+            # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-accesspoint.html
+            # And I confirmed it with docs from here:
+            # https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-policies.html#:~:text=example%20access%20point%20policy%20grant
+            # note the `/object/` path at the end. This is not a path in the
+            # bucket it is away of describing access to an object in the bucket.
+            Resource: !Sub "arn:${AWS::Partition}:s3:${AWS::Region}:${AWS::AccountId}:accesspoint/${ProjectName}-access-point/object/${ProjectName}/*"
+
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -143,8 +155,8 @@ Resources:
             CustomOriginConfig:
               OriginProtocolPolicy: match-viewer
           - DomainName: !Sub
-              - "${BucketName}.s3.amazonaws.com"
-              - BucketName: !FindInMap [BucketNameMap, !Ref 'AwsAccountDomain', Name]
+              - "${AccessPointAlias}.s3.amazonaws.com"
+              - AccessPointAlias: !GetAtt S3AccessPoint.Alias
             Id: protected-origin
             OriginPath: !Sub '/${ProjectName}'
             S3OriginConfig:
@@ -166,6 +178,8 @@ Resources:
         HttpHeaders: '{}'
         AlternateDomainNames: !Sub '${ProjectName}.${AwsAccountDomain}'
         UserPoolGroupName: viewers
+        # TODO: it would be nice if we could define the name of the user pool
+        # here, so it doesn't end up with a long ugly name
 
   GoogleIdentityProvider:
     Type: AWS::Cognito::UserPoolIdentityProvider
