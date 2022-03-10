@@ -73,14 +73,12 @@ Resources:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
       CloudFrontOriginAccessIdentityConfig:
-        Comment: !Sub
-          - "${BucketName}-OAI"
-          - BucketName: !FindInMap [BucketNameMap, !Ref 'AwsAccountDomain', Name]
+        Comment: !Sub "${ProjectName}-OAI"
   
   S3AccessPoint:
     Type: AWS::S3::AccessPoint
     Properties:
-      Bucket: !FindInMap [BucketNameMap, !Ref 'AwsAccountDomain', Name]
+      Bucket: !FindInMap [BucketMap, !Ref 'AwsAccountDomain', Name]
       Name: !Sub "${ProjectName}-access-point"
       Policy:
         Version: "2012-10-17"
@@ -155,8 +153,14 @@ Resources:
             CustomOriginConfig:
               OriginProtocolPolicy: match-viewer
           - DomainName: !Sub
-              - "${AccessPointAlias}.s3.amazonaws.com"
+              # The region of the domain is normally optional in s3 us-east-1
+              # urls, but in this case signature errors happen without the
+              # region. As far as I can tell the region of the access point is
+              # based on the region of the bucket, so it is pulled out of the
+              # BucketMap
+              - "${AccessPointAlias}.s3.${AccessPointRegion}.amazonaws.com"
               - AccessPointAlias: !GetAtt S3AccessPoint.Alias
+                AccessPointRegion: !FindInMap [BucketMap, !Ref 'AwsAccountDomain', Region]
             Id: protected-origin
             OriginPath: !Sub '/${ProjectName}'
             S3OriginConfig:
@@ -214,11 +218,13 @@ Mappings:
       Id: arn:aws:acm:us-east-1:612297603577:certificate/2b62511e-ccc8-434b-ba6c-a8c33bbd509e
     concordqa.org:
       Id: arn:aws:acm:us-east-1:816253370536:certificate/7b8bb00e-7aa4-4b9f-a722-f49c828af83c
-  BucketNameMap:
+  BucketMap:
     concord.org:
       Name: private-models-resources
+      Region: us-east-1
     concordqa.org:
       Name: cc-qa-private-resources
+      Region: us-east-1
 
 Outputs:
   UserPoolId:
