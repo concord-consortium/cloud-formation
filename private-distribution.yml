@@ -1,0 +1,238 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Create a restricted CloudFront distribution it uses a aws-samples 'LambdaEdgeProtection'
+  Sam application to setup the Lambdas. The Lambdas work with Cognito to authenticate the
+  user and add the authentication tokens to the cookie.
+
+  This stack setups the distribution, Cognito User Pool, Cognito User Pool Group,
+  and a Google Identity provider. It also creates the
+
+  After deployment, you need to manually add the Cognito URLs to the Google developer console.
+  The URLs you need and more info is shown in the Outputs of the stack.
+
+  You also need to manually enable the Google Provider in the Cognito client settings.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: >
+      This will be used in several places. It will be the first segmenent of the domain name.
+      It will also be used as the folder (prefix) in the S3 bucket above.
+
+  AwsAccountDomain:
+    Type: String
+    AllowedValues: [concord.org, concordqa.org]
+    Description: >
+      This is used as the ZoneName for adding the DNS entry. It is also used for looking
+      up the private bucket name for this account.
+
+  SemanticVersion:
+    Type: String
+    Description: Semantic version of the cloudfront-authorization-at-edge Sam application
+    Default: 2.0.1
+
+  # TODO: Find a way to make this list dynamic:
+  # https://github.com/concord-consortium/cloudfront-authorization-at-edge/blob/c2b7c4d45f5cf9968806126339fb75457c2ac543/template.yaml#L375
+  # so there is one less manual step needed to setup Google SSO
+  GoogleClientId:
+    Type: String
+    Description: >
+      Client id from the google developer console's oauth section.
+      Note: you will still need to update info the google dev console.
+      See the outputs of the stack for more info.
+      Additionally you will need to manually add Google as an Enabled Identity Provider
+      in the App Client Settings section of the Cognito User Pool
+
+  GoogleClientSecret:
+    Type: String
+    Description: client secret from the google developer console's oauth section
+
+Resources:
+  DNS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        # static zone id from documentation
+        HostedZoneId: Z2FDTNDATAQYW2
+      HostedZoneName: !Sub '${AwsAccountDomain}.'
+      Name: !Sub '${ProjectName}.${AwsAccountDomain}'
+      Type: A
+
+  # The recommendation is for there to only be one OAI for all of CloudFront.
+  # This is because there is a limit of 100 OAIs. 
+  # But doing that would make the setup harder. So for now we just make a new
+  # one for each distribution we setup.  
+  # If we need to share the OAI in the future I'd recommend keeping this
+  # resource definition here and just make it conditional. So the stack can have
+  # a param specifying a external shared OAI but if not then the stack will just
+  # create one. This will mean we'd have to construct the canonical
+  # user from the id instead of just getting it out of the resource
+  CloudFrontOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub "${ProjectName}-OAI"
+  
+  S3AccessPoint:
+    Type: AWS::S3::AccessPoint
+    Properties:
+      Bucket: !FindInMap [BucketMap, !Ref 'AwsAccountDomain', Name]
+      Name: !Sub "${ProjectName}-access-point"
+      Policy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              CanonicalUser:
+                Fn::GetAtt: [ CloudFrontOriginAccessIdentity , S3CanonicalUserId ]
+            Action: "s3:GetObject"
+            # This ARN is weird. I basically took it from here:
+            # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-accesspoint.html
+            # And I confirmed it with docs from here:
+            # https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-policies.html#:~:text=example%20access%20point%20policy%20grant
+            # note the `/object/` path at the end. This is not a path in the
+            # bucket it is away of describing access to an object in the bucket.
+            Resource: !Sub "arn:${AWS::Partition}:s3:${AWS::Region}:${AWS::AccountId}:accesspoint/${ProjectName}-access-point/object/${ProjectName}/*"
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+        - !Sub '${ProjectName}.${AwsAccountDomain}'
+        ViewerCertificate:
+          AcmCertificateArn: !FindInMap [SSLCertificateMap, !Ref 'AwsAccountDomain', Id]
+          SslSupportMethod: sni-only
+
+        # ViewerCertificate: <the config for your HTTPS certificate>
+        CacheBehaviors:
+          - PathPattern: /parseauth
+            Compress: true
+            ForwardedValues:
+              QueryString: true
+            LambdaFunctionAssociations:
+              - EventType: viewer-request
+                LambdaFunctionARN: !GetAtt LambdaEdgeProtection.Outputs.ParseAuthHandler
+            TargetOriginId: dummy-origin
+            ViewerProtocolPolicy: redirect-to-https
+          - PathPattern: /refreshauth
+            Compress: true
+            ForwardedValues:
+              QueryString: true
+            LambdaFunctionAssociations:
+              - EventType: viewer-request
+                LambdaFunctionARN: !GetAtt LambdaEdgeProtection.Outputs.RefreshAuthHandler
+            TargetOriginId: dummy-origin
+            ViewerProtocolPolicy: redirect-to-https
+          - PathPattern: /signout
+            Compress: true
+            ForwardedValues:
+              QueryString: true
+            LambdaFunctionAssociations:
+              - EventType: viewer-request
+                LambdaFunctionARN: !GetAtt LambdaEdgeProtection.Outputs.SignOutHandler
+            TargetOriginId: dummy-origin
+            ViewerProtocolPolicy: redirect-to-https
+        DefaultCacheBehavior:
+          Compress: true
+          ForwardedValues:
+            QueryString: true
+          LambdaFunctionAssociations:
+            - EventType: viewer-request
+              LambdaFunctionARN: !GetAtt LambdaEdgeProtection.Outputs.CheckAuthHandler
+            - EventType: origin-response
+              LambdaFunctionARN: !GetAtt LambdaEdgeProtection.Outputs.HttpHeadersHandler
+          TargetOriginId: protected-origin
+          ViewerProtocolPolicy: redirect-to-https
+        Enabled: true
+        Origins:
+          - DomainName: example.org # Dummy origin is used for Lambda@Edge functions, keep this as-is
+            Id: dummy-origin
+            CustomOriginConfig:
+              OriginProtocolPolicy: match-viewer
+          - DomainName: !Sub
+              # The region of the domain is normally optional in s3 us-east-1
+              # urls, but in this case signature errors happen without the
+              # region. As far as I can tell the region of the access point is
+              # based on the region of the bucket, so it is pulled out of the
+              # BucketMap
+              - "${AccessPointAlias}.s3.${AccessPointRegion}.amazonaws.com"
+              - AccessPointAlias: !GetAtt S3AccessPoint.Alias
+                AccessPointRegion: !FindInMap [BucketMap, !Ref 'AwsAccountDomain', Region]
+            Id: protected-origin
+            OriginPath: !Sub '/${ProjectName}'
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}"
+        PriceClass: PriceClass_All
+        DefaultRootObject: index.html
+
+  LambdaEdgeProtection:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location:
+        # This application lives in the concordqa account and it references
+        # content in a concordqa bucket.
+        #
+        # The application was forked from an AWS example that didn't support
+        # user pool groups at the time. This AWS example now supports groups.
+        # Additionally the AWS example always built a large react app just as a
+        # demo. This long build was causing problems so it was removed from our
+        # fork. The updated AWS example has an option to only deploy a simple
+        # static index.html file instead. Hopefully using that option would fix
+        # things for us. 
+        #
+        # So we should try switching to using their application in the
+        # serverlessrepo instead of ours. 
+        ApplicationId: arn:aws:serverlessrepo:us-east-1:816253370536:applications/cloudfront-authorization-at-edge
+        SemanticVersion: !Ref SemanticVersion
+      Parameters:
+        CreateCloudFrontDistribution: "false"
+        HttpHeaders: '{}'
+        AlternateDomainNames: !Sub '${ProjectName}.${AwsAccountDomain}'
+        UserPoolGroupName: viewers
+        # TODO: it would be nice if we could define the name of the user pool
+        # here, so it doesn't end up with a long ugly name
+
+  GoogleIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      # Note this mapping seems to be the reverse of what is in the UI
+      # The key is the cognito user property and the value is the google property
+      AttributeMapping:
+        email: email
+        username: sub
+        name: names
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: profile email openid
+      ProviderName: Google
+      ProviderType: Google
+      UserPoolId: !GetAtt LambdaEdgeProtection.Outputs.UserPoolId
+
+Mappings:
+  SSLCertificateMap:
+    concord.org:
+      Id: arn:aws:acm:us-east-1:612297603577:certificate/2b62511e-ccc8-434b-ba6c-a8c33bbd509e
+    concordqa.org:
+      Id: arn:aws:acm:us-east-1:816253370536:certificate/7b8bb00e-7aa4-4b9f-a722-f49c828af83c
+  BucketMap:
+    concord.org:
+      Name: private-models-resources
+      Region: us-east-1
+    concordqa.org:
+      Name: cc-qa-private-resources
+      Region: us-east-1
+
+Outputs:
+  UserPoolId:
+    Description: The user pool id
+    Value: !GetAtt LambdaEdgeProtection.Outputs.UserPoolId
+  AuthorizedJavaScriptOrigin:
+    Description: This needs to be added to the Google console APIs & Services > Credentials > OAuth 2.0 Client IDs.
+    Value: !Sub 'https://${LambdaEdgeProtection.Outputs.CognitoAuthDomain}'
+  AuthorizedRedirectURI:
+    Description: This needs to be added to the Google console APIs & Services > Credentials > OAuth 2.0 Client IDs.
+    Value: !Sub 'https://${LambdaEdgeProtection.Outputs.CognitoAuthDomain}/oauth2/idpresponse'
