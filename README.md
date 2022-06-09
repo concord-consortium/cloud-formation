@@ -12,7 +12,7 @@ This repo holds the CloudFormation stacks used for deployment and development of
 [Portal Deployment](https://docs.google.com/document/d/1dmAV4ojzwau2C-TANvoxw9jAnUN2F5FdOSSy6f42H84/edit#heading=h.2f262hz7x02h)
 
 
-Running script to create an app-only portal stack with parameters copied from another stack:
+Running script to create an app-only Portal stack with parameters copied from another stack:
 
     cd scripts
     npm install
@@ -24,32 +24,79 @@ This script should work for other types of stacks, but it hasn't been tested.
 
 See the file ./scripts/README.md for more details.
 
-## Paired QA servers (Lara / Portal)
-2021-01-21: We want to be able tp deploy paired sets of Lara & Portal to the QA environment.
-Recent template changes should make this easier.
+## Paired QA servers (LARA / Portal)
+These instructions should help you deploy paired sets of LARA & Portal servers.
+The examples assume the QA environment, but you can do this in staging as well.
+Recent template changes should make this process easier.
 
+Summary:
+  - Clone RDS instances of the production LARA and Portal databases using snapshots if you can.
+  - Use `create-stack` scripts to provision a Portal using configs and param overrides.
+  - Modify the Portal auth-client `authoring` configuration to fix authentication.
+  - Update URLS to shared resources on both servers using `lib/script/rewrite_lara_portal_resources.rb` from the LARA repo.
+
+### Creating the stacks
 1. Change into the `scripts` directory and install the dependencies: `cd scripts && npm install`
 2. Create some configuration files. These config templates will setup your stacks for you. See the `README.md` file in the scripts directory for more info: `cp configs/create-config.sample.yml configs/create-my-project-config.yml`
 3. Copy Parameters from production or staging stacks.
-	1. Select your primary AWS account credentials to copy stack parameters for the production Lara and Portal instances you are working on. `export AWS_PROFILE=concord`
-	2. Run the `create-stack` npm script to copy the stack paraemters your want. `npm run create-stack`
+	1. Select your primary AWS account credentials to copy stack parameters for the production LARA and Portal instances you are working on. `export AWS_PROFILE=concord`
+	2. Run the `create-stack` npm script to copy the stack parameters your want. `npm run create-stack`
 	3. Select the first menu item "Save stack params".  The script will show you a list of running stacks. Type-ahead search for the stack you want to copy into the QA environment.
 	4. Your parameters will be saved in the folder `stack-params`
 	5. Modify your `configs/create-my-project-config.yml file`
 		1. Update the `OriginalStack` parameter to point to the stack-params file you just downloaded.
-		2. Update any `ParameterModifications` you would like to ovveride. You will especially want to look at the domainName
+		2. Update any `ParameterModifications` you would like to override.
+      - Check or override these LARA params:
+        - HostName
+        - DomainNameBase
+        - CloudWatchLogGroup
+        - DbHost
+        - DatabaseSecurityGroupId
+        - Environment
+        - QAPortalSecret
+        - QAPortalURL
+      - Check or override these PORTAL params:
+        - ShortName
+        - DomainName
+        - CloudWatchLogGroup
+        - SiteURL
+        - Environment
+        - DbHost
+        - DatabaseSecurityGroupId
+        - AuthoringSiteURL
+        - S3SecreateAccessKey
+        - S3AccessKeyId
+        - ReportDomainName
+        - LogStashDbHost
+        - ClusterStackName
 		3. See the `scripts/README.md` file for more info
-	6. Configure AWS command line tools. Set your `AWS_PROFILE` to the `concord-qa` account.
+	6. Configure AWS command line tools. Set your `AWS_PROFILE` to the appropriate account (eg: `concord-qa`)
 	7.  Run the `create-stack` npm script again.
 	8.  Select `Create stack` from the script menu, selecting your newly modified configuration file (`create-my-project-config.yml`)
-	9.  Monitor the creation of your stack using the AWS console in the ConcordQA environment.
+	9.  Monitor the creation of your stack using the AWS console.
 
-
-### Parameters for QA Paired Authentication:
+### Configuring Paired Authentication:
+  - Before creating the LARA instance, connect to the Portal you created.
+  - Find the AuthClient for `authoring` in the admin clients listing in the Portal, and edit it.
+	- Generate a new Secret.
+	- Update the `Allowed redirect URIs`  parameter to include the callback URL for your future LARA instance eg:
+	- `-   https://ngss-staging-lara.staging.concord.org/users/auth/cc_portal_qa_portal/callback`
+- Set the Template parameters for the LARA instance:
+	- `PortalClientID: 'authoring'`
+	- `QAPortalSecret: <secret from Portal auth-clients>`
+	- `QAPortalURL: <https url to the Portal>
 
 * If the `QAPortalSecret` and `QAPortalURL` parameters are set in the `create-config.yml` file, the `lara-ecs.yml` template will configure a new `CONCORD_CONFIGURED_PORTALS` auth provider.
 * Check or set the value for the parameter `PortalClientID`
 * Make sure `PortalClientID`, `QAPortalURL` and `QAPortalSecret` match an entry in the list of Auth Clients on the paired Portal.
+
+### Converting Resource URLS in the newly created pair:
+Because the RDS servers were created from production, its important to rewrite resources in both the Portal and in LARA.
+
+- Copy the script from the lara git repo in `lib/script/rewrite_lara_portal_resources.rb` and open a consoles in both the LARA and Portal rails servers.
+- In the Portal console run eg: `update_portal_lara_refs('authoring.concord.org', 'my-lara.concord-qa.org')`
+- In Lara console run eg: `update_lara_portal_refs('learn.concord.org', 'my-portal.concord-qa.org')`
+
 
 ## api.concord.org
 
