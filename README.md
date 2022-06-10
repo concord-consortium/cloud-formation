@@ -11,7 +11,6 @@ This repo holds the CloudFormation stacks used for deployment and development of
 
 [Portal Deployment](https://docs.google.com/document/d/1dmAV4ojzwau2C-TANvoxw9jAnUN2F5FdOSSy6f42H84/edit#heading=h.2f262hz7x02h)
 
-
 Running script to create an app-only Portal stack with parameters copied from another stack:
 
     cd scripts
@@ -24,7 +23,9 @@ This script should work for other types of stacks, but it hasn't been tested.
 
 See the file ./scripts/README.md for more details.
 
-## Paired QA servers (LARA / Portal)
+## CreatePaired QA servers (LARA / Portal)
+See also the [Google Drive document](https://docs.google.com/document/d/1rAJrWy6cNHvo_x-c0vCAfNF2nu3BqtdFgrV8LLiJ8SU/edit#heading=h.pivpxvk0jh1l) for a verbose blow-by-blow account of how this was used to setup a staging environment in the past.
+
 These instructions should help you deploy paired sets of LARA & Portal servers.
 The examples assume the QA environment, but you can do this in staging as well.
 Recent template changes should make this process easier.
