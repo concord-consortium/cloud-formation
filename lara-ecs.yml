@@ -167,6 +167,13 @@ Parameters:
     Description: URL of script to create an Activity Player compatible version of
       resources by converting old embeddables to library interactives
     Default: https://models-resources.concord.org/question-interactives/branch/master/convert-old-lara/?lara_root=https://authoring.concord.org&template=https://authoring.concord.org/api/v1/activities/11354.json
+  EnableDangerousGlossaryLinkingOnImport:
+    Type: String
+    Description: enables linking glossaries during activity import solely based on the
+    id in the glossary model api url, ignoring the api domain.  This will be used during
+    the LARA2 cutover to test imports.
+    AllowedValues: ['false', 'true']
+    Default: 'false'
 
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
@@ -645,6 +652,8 @@ Resources:
           Value: !Ref ActivityPlayerURL
         - Name: CONVERSION_SCRIPT_URL
           Value: !Ref ConversionScriptURL
+        - Name: ENABLE_DANGEROUS_GLOSSARY_LINKING_ON_IMPORT
+          Value: !Ref EnableDangerousGlossaryLinkingOnImport
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -984,7 +993,8 @@ Resources:
           Value: !Ref ActivityPlayerURL
         - Name: CONVERSION_SCRIPT_URL
           Value: !Ref ConversionScriptURL
-
+        - Name: ENABLE_DANGEROUS_GLOSSARY_LINKING_ON_IMPORT
+          Value: !Ref EnableDangerousGlossaryLinkingOnImport
 
   WorkerService:
     Type: AWS::ECS::Service
