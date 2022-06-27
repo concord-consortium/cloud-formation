@@ -170,8 +170,8 @@ Parameters:
   EnableDangerousGlossaryLinkingOnImport:
     Type: String
     Description: enables linking glossaries during activity import solely based on the
-    id in the glossary model api url, ignoring the api domain.  This will be used during
-    the LARA2 cutover to test imports.
+      id in the glossary model api url, ignoring the api domain.  This will be used during
+      the LARA2 cutover to test imports.
     AllowedValues: ['false', 'true']
     Default: 'false'
 
