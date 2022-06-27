@@ -26,6 +26,9 @@ Parameters:
   CRaterPassword:
     Type: String
     Description: Password for api
+  AuthorizationEnabled:
+    Type: String
+    Description: "true" enables basic authorization (it uses CRaterUsername and CRaterPassword)
   ApiGatewayMonthlyLimit:
     Type: String
     Description: Monthly limit of number of requests
@@ -50,6 +53,7 @@ Resources:
         Variables:
           C_RATER_USERNAME: !Ref CRaterUsername
           C_RATER_PASSWORD: !Ref CRaterPassword
+          AUTH_ENABLED: !Ref AuthorizationEnabled
       Code:
         S3Bucket: concord-devops
         S3Key: !Sub "question-rater/${LambdaZipFilename}"
