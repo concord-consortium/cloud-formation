@@ -48,9 +48,9 @@ Parameters:
     Type: String
     Description: The OAuth2 key to authenticate via itsi-test. If this is not set, the portal
       will not be configured.
-  LearnStemSecret:
+  LearnMigrateSecret:
     Type: String
-    Description: The OAuth2 key to authenticate via learn-stem. If this is not set, the portal
+    Description: The OAuth2 key to authenticate via learn-migrate. If this is not set, the portal
       will not be configured.
   LearnStagingSecret:
     Type: String
@@ -178,7 +178,7 @@ Parameters:
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
   AddITSITest: !Not [!Equals [!Ref ITSITestSecret, ""]]
-  AddLearnStem: !Not [!Equals [!Ref LearnStemSecret, ""]]
+  AddLearnMigrate: !Not [!Equals [!Ref LearnMigrateSecret, ""]]
   AddLearnStaging: !Not [!Equals [!Ref LearnStagingSecret, ""]]
   AddAssessmentPortal: !Not [!Equals [!Ref AssessmentPortalSecret, ""]]
   AddHASPortal: !Not [!Equals [!Ref HASPortalSecret, ""]]
@@ -398,7 +398,7 @@ Resources:
           - ' '
           - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
-            - !If [ AddLearnStem, LEARN_STEM_STAGING, !Ref 'AWS::NoValue']
+            - !If [ AddLearnMigrate, LEARN_MIGRATE, !Ref 'AWS::NoValue']
             - !If [ AddITSITest, ITSI_TEST, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
             - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
@@ -445,21 +445,21 @@ Resources:
             Value: https://itsi-test.portal.concord.org/
           - !Ref 'AWS::NoValue'
 
-        # learn stem staging configuration
+        # learn migrate configuration
         - !If
-          - AddLearnStem
-          - Name: CONCORD_LEARN_STEM_STAGING_CLIENT_ID
+          - AddLearnMigrate
+          - Name: CONCORD_LEARN_MIGRATE_CLIENT_ID
             Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
-          - AddLearnStem
-          - Name: CONCORD_LEARN_STEM_STAGING_CLIENT_SECRET
-            Value: !Ref LearnStemSecret
+          - AddLearnMigrate
+          - Name: CONCORD_LEARN_MIGRATE_CLIENT_SECRET
+            Value: !Ref LearnMigrateSecret
           - !Ref 'AWS::NoValue'
         - !If
-          - AddLearnStem
-          - Name: CONCORD_LEARN_STEM_STAGING_URL
-            Value: https://learn-stem.staging.concord.org/
+          - AddLearnMigrate
+          - Name: CONCORD_LEARN_MIGRATE_URL
+            Value: https://learn-migrate.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn staging configuration
@@ -759,7 +759,7 @@ Resources:
           - ' '
           - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
-            - !If [ AddLearnStem, LEARN_STEM_STAGING, !Ref 'AWS::NoValue']
+            - !If [ AddLearnMigrate, LEARN_MIGRATE, !Ref 'AWS::NoValue']
             - !If [ AddITSITest, ITSI_TEST, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
             - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
@@ -808,19 +808,19 @@ Resources:
 
         # learn docker staging configuration
         - !If
-          - AddLearnStem
-          - Name: CONCORD_LEARN_STEM_STAGING_CLIENT_ID
+          - AddLearnMigrate
+          - Name: CONCORD_LEARN_MIGRATE_CLIENT_ID
             Value: !Ref PortalClientID
           - !Ref 'AWS::NoValue'
         - !If
-          - AddLearnStem
-          - Name: CONCORD_LEARN_STEM_STAGING_CLIENT_SECRET
-            Value: !Ref LearnStemSecret
+          - AddLearnMigrate
+          - Name: CONCORD_LEARN_MIGRATE_CLIENT_SECRET
+            Value: !Ref LearnMigrateSecret
           - !Ref 'AWS::NoValue'
         - !If
-          - AddLearnStem
-          - Name: CONCORD_LEARN_STEM_STAGING_URL
-            Value: https://learn-stem.staging.concord.org/
+          - AddLearnMigrate
+          - Name: CONCORD_LEARN_MIGRATE_URL
+            Value: https://learn-migrate.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn staging configuration
@@ -1076,7 +1076,7 @@ Metadata:
       - HASPortalSecret
       - ITSITestSecret
       - ITSIPortalSecret
-      - LearnStemSecret
+      - LearnMigrateSecret
       - LearnPortalSecret
       - LearnStagingSecret
     - Label:
