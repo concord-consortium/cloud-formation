@@ -47,7 +47,7 @@ Resources:
       Handler: index.handler
       MemorySize: 128
       Role: !GetAtt [ProxyLambdaIamRole, Arn]
-      Runtime: nodejs10.x
+      Runtime: nodejs16.x
       Timeout: 60
       Environment:
         Variables:
@@ -98,7 +98,6 @@ Resources:
     Properties:
       Name: !Sub "question-rater-${Environment}"
       Description: Accepts xml requests from Lara and proxies them to external rating service
-      ApiKeySourceType: HEADER
       EndpointConfiguration:
         Types:
           - EDGE
@@ -145,6 +144,7 @@ Resources:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - ApiGatewayPostRequest
+      - ApiGatewayOptionsRequest
     Properties:
       RestApiId: !Ref ApiGateway
 
@@ -159,9 +159,11 @@ Resources:
   ApiGatewayPostRequest:
     Type: AWS::ApiGateway::Method
     Properties:
-      ApiKeyRequired: true
+      ApiKeyRequired: false
       AuthorizationType: NONE
       HttpMethod: POST
+      ResourceId: !GetAtt [ApiGateway, RootResourceId]
+      RestApiId: !Ref ApiGateway
       Integration:
         IntegrationHttpMethod: POST
         Type: AWS_PROXY
@@ -173,15 +175,40 @@ Resources:
             StatusCode: "200"
             ResponseTemplates:
               "application/json": ""
-      ResourceId: !GetAtt [ApiGateway, RootResourceId]
-      RestApiId: !Ref ApiGateway
       MethodResponses:
         -
           StatusCode: "200"
           ResponseModels:
             "text/xml": Empty
+
+  ApiGatewayOptionsRequest:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !GetAtt [ApiGateway, RootResourceId]
+      RestApiId: !Ref ApiGateway
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+            StatusCode: '200'
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - ResponseModels:
+            application/json: Empty
           ResponseParameters:
-            "method.response.header.Access-Control-Allow-Origin": true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          StatusCode: '200'
 
   ApiGatewayMapping:
     DependsOn: ApiGatewayStage
@@ -255,23 +282,6 @@ Resources:
         RateLimit: 100
       UsagePlanName: !Sub "question-rater-${Environment}"
 
-  ApiGatewayKey:
-    DependsOn: ApiGatewayStage
-    Type: AWS::ApiGateway::ApiKey
-    Properties:
-      Enabled: true
-      StageKeys:
-        - RestApiId: !Ref ApiGateway
-          StageName: latest
-
-  ApiGatewayUsagePlanKey:
-    Type: AWS::ApiGateway::UsagePlanKey
-    Properties:
-      # NOTE: we don't name the key here as that does not allow us to update it without replacement
-      KeyId: !Ref ApiGatewayKey
-      KeyType: API_KEY
-      UsagePlanId: !Ref ApiGatewayUsagePlan
-
 Outputs:
   RawQuestionRaterUrl:
     Description: Raw URL of the API gateway for question rater
@@ -279,6 +289,3 @@ Outputs:
   NiceQuestionRaterUrl:
     Description: Nice URL of the API gateway for question rater
     Value: !Sub "https://api.concord.org/${ApiGatewayBasePath}/"
-  ApiGatewayKeyID:
-    Description: API Gateway Key ID
-    Value: !Ref ApiGatewayKey
