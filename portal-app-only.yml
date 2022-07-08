@@ -135,10 +135,19 @@ Parameters:
     Description: This is the host name of the internal load balancer setup by the main
       stack.  You can find it in the Outputs of the InternalLoadBalancerStack. It is the
       ELBDNSName property.
+  DisallowAllRobotsTxt:
+    Type: String
+    Description: set to true to have portal generate robots.txt that disallows all user
+      agents.  This option is checked first in the robots controller.
+    Default: false
+    AllowedValues:
+    - true
+    - false
   DynamicRobotsTxt:
     Type: String
     Description: set to true to have portal generate robots.txt otherwise the default
-      robots.txt will be used which denies all access
+      robots.txt will be used which denies all access UNLESS the DisallowAllRobotsTxt
+      is set to true as it is checked first.
     Default: false
     AllowedValues:
     - true
@@ -348,6 +357,8 @@ Resources:
           Value: !Ref GoogleClientSecret
         - Name: RESTART_TOGGLE
           Value: !Ref RestartToggle
+        - Name: DISALLOW_ALL_ROBOTS_TXT
+          Value: !Ref DisallowAllRobotsTxt
         - Name: DYNAMIC_ROBOTS_TXT
           Value: !Ref DynamicRobotsTxt
         - Name: CC_PORTAL_VERSION
