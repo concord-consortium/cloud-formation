@@ -19,4 +19,20 @@ function modifyBehavior(distribution, behavior) {
   return true;
 }
 
-await updateDistributions(cloudfront, ["E3FXU5FXPVO7AK"], modifyBehavior);
+function modifyOrigin(origin) {
+  const customCorsOriginHeader = origin.CustomHeaders.Items
+    .find(header => header.HeaderName === "Origin");
+  if (customCorsOriginHeader) {
+    console.log(`Origin already has custom Origin header of ${customCorsOriginHeader.HeaderValue}`);
+    return false;
+  } else {
+    origin.CustomHeaders.Items.push({
+      HeaderName: "Origin",
+      HeaderValue: "https://concord.org"
+    })
+    origin.CustomHeaders.Quantity = origin.CustomHeaders.Items.length;
+    return true;
+  }
+}
+
+await updateDistributions(cloudfront, ["E3FXU5FXPVO7AK"], null, modifyOrigin);

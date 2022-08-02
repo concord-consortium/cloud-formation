@@ -12,7 +12,7 @@ console.log(`AWS Region: ${AWS.config.region}`)
 
 const createCsvWriter = CSVWriter.createObjectCsvWriter;
 
-// The two types of origina domains are the main S3 endpoint and
+// The two types of origin domains are the main S3 endpoint and
 // the website endpoint. Here are some examples
 // interactions-resources.s3.amazonaws.com
 // learn-resources.s3-website-us-east-1.amazonaws.com
@@ -34,6 +34,10 @@ function makeBehaviorRecord(distribution, behavior) {
   const origin = distribution.Origins.Items.find((origin) => origin.Id === behavior.TargetOriginId);
   const bucket = bucketName(origin.DomainName);
 
+  const OriginCustomHeaders = origin.CustomHeaders.Items
+    .map(header => `${header.HeaderName}: ${header.HeaderValue}`)
+    .join(', ');
+
   const behaviorRecord = {
     Id: distribution.Id,
     DomainName: distribution.DomainName,
@@ -43,8 +47,10 @@ function makeBehaviorRecord(distribution, behavior) {
     AllowedMethods: behavior.AllowedMethods.Items.join(', '),
     OriginDomainName: origin.DomainName,
     OriginPath: origin.OriginPath,
+    OriginCustomHeaders,
     BucketName: bucket,
-    RawBehavior: JSON.stringify(behavior, null, 2)
+    RawBehavior: JSON.stringify(behavior, null, 2),
+    RawOrigin: JSON.stringify(origin, null, 2)
   }
 
   if (bucket) {
@@ -82,7 +88,7 @@ while(!finished) {
   marker = batch.DistributionList.NextMarker;
   finished = !batch.DistributionList.IsTruncated;
   for(const distribution of batch.DistributionList.Items) {
-    console.log(`recieved: ${batch.DistributionList.Quantity} distributions`);
+    console.log(`received: ${batch.DistributionList.Quantity} distributions`);
 
     behaviors.push(makeBehaviorRecord(distribution, distribution.DefaultCacheBehavior));
 
@@ -139,6 +145,7 @@ const csvBehaviorWriter = createCsvWriter({
         {id: 'PathPattern', title: 'PathPattern'},
         {id: 'OriginDomainName', title: 'OriginDomainName'},
         {id: 'OriginPath', title: 'OriginPath'},
+        {id: 'OriginCustomHeaders', title: 'OriginCustomHeaders'},
         {id: 'BucketName', title: 'BucketName'},
         {id: 'BucketType', title: 'BucketType'},
         {id: 'ViewerProtocolPolicy', title: 'ViewerProtocolPolicy'},
@@ -147,14 +154,15 @@ const csvBehaviorWriter = createCsvWriter({
         {id: 'WhitelistedHeaders', title: 'WhitelistedHeaders'},
         {id: 'CachePolicyId', title: 'CachePolicyId'},
         {id: 'OriginRequestPolicyId', title: 'OriginRequestPolicyId'},
-        // {id: 'RawBehavior', title: 'RawBehavior'}
+        // {id: 'RawOrigin', title: 'RawOrigin'},
+        // {id: 'RawBehavior', title: 'RawBehavior'},
     ]
 });
 
 await csvBehaviorWriter.writeRecords(behaviors);
 
 function shouldUpdateBasedOnBucketType(bucketType) {
-  return bucketType=== "public" || bucketType === "public-custom-cors";
+  return bucketType === "public" || bucketType === "public-custom-cors";
 }
 
 const s3Cors1PolicyId = "a1cf85e6-b5ea-4ed9-80e7-1cf3cdc8ecaa";
@@ -178,12 +186,52 @@ function modifyBehavior(distribution, behavior) {
   }
 }
 
-const behaviorRecordsToUpdate = behaviors.filter(behaviorRecord => {
-  return behaviorRecord.CachePolicyId !== s3CorsPolicyId &&
-    behaviorRecord.CachePolicyId !== s3Cors1PolicyId &&
-    shouldUpdateBasedOnBucketType(behaviorRecord.BucketType)
-});
-const distributionsToUpdate = new Set(behaviorRecordsToUpdate.map(behavior => behavior.Id));
+//----------
+// Update distributions that need have behaviors with the CORS cache
+// policy
+// Uncomment this if you want to set the S3-CORS policy on public and public-custom-cors behaviors
+//----------
+// const behaviorRecordsToUpdate = behaviors.filter(behaviorRecord => {
+//   return behaviorRecord.CachePolicyId !== s3CorsPolicyId &&
+//     behaviorRecord.CachePolicyId !== s3Cors1PolicyId &&
+//     shouldUpdateBasedOnBucketType(behaviorRecord.BucketType)
+// });
+// const distributionsToUpdate = new Set(behaviorRecordsToUpdate.map(behavior => behavior.Id));
 
-// Uncomment this if you want to set the S3-CORS policy on public  and public-custom-cors behaviors
-// await updateDistributions(cloudfront, distributionsToUpdate, modifyBehavior);
+// await updateDistributions(cloudfront, distributionsToUpdate, modifyBehavior, null);
+
+//----------
+// Update distributions that have bucket origins with a custom header
+// called `Origin` this is needed to prevent caching of non cors 
+// headers by browsers
+//----------
+// const behaviorRecordsToUpdate = behaviors.filter(behaviorRecord => {  
+//   return !behaviorRecord.OriginCustomHeaders.match(/Origin:/) &&
+//     shouldUpdateBasedOnBucketType(behaviorRecord.BucketType)
+// });
+// const distributionsToUpdate = new Set(behaviorRecordsToUpdate.map(behavior => behavior.Id));
+
+// function modifyOrigin(origin) {
+//   const bucket = bucketName(origin.DomainName);
+//   const bucketType = bucket && bucketTags[bucket] && bucketTags[bucket].BucketType;
+//   if (!shouldUpdateBasedOnBucketType(bucketType)) {
+//     console.log("  skipping non public bucket origin");
+//     return false;
+//   }
+
+//   const customCorsOriginHeader = origin.CustomHeaders.Items
+//     .find(header => header.HeaderName === "Origin");
+//   if (customCorsOriginHeader) {
+//     console.log(`  Origin already has custom Origin header of ${customCorsOriginHeader.HeaderValue}`);
+//     return false;
+//   } 
+
+//   origin.CustomHeaders.Items.push({
+//     HeaderName: "Origin",
+//     HeaderValue: "https://concord.org"
+//   })
+//   origin.CustomHeaders.Quantity = origin.CustomHeaders.Items.length;
+//   return true;
+// }
+
+// await updateDistributions(cloudfront, distributionsToUpdate, null, modifyOrigin);
