@@ -64,13 +64,13 @@ Generate a `behaviors.csv` with information about the behaviors of all of the Cl
 
 ## cf-behavior-list (update enabled)
 
-At the end of `cf-behavior-list.mjs` are a 2 sections you can uncomment to update the distributions. The first was used to update all behaviors using public S3 buckets so they would use the S3-CORS cache policy. The second was used to update all origins pointing at public S3 buckets so they'd have a custom header of `Origin: https://concord.org`
+At the end of `cf-behavior-list.mjs` are two sections you can uncomment to update the distributions. The first was used to update all behaviors using public S3 buckets so they would use the S3-CORS cache policy. The second was used to update all origins pointing at public S3 buckets so they'd have a custom header of `Origin: https://concord.org`
 
-These sections looks for distributions meeting the certain criteria. Then for all matching distributions are passed to `updateDistributions` along with an option `modifyBehavior` and `modifyOrigin` function.
+These sections looks for distributions meeting certain criteria. Then all matching distributions are passed to `updateDistributions` along with an option `modifyBehavior` and `modifyOrigin` function.
 
 The update code is written to be modular so you can use these sections as a guide and add your own code for updating all of the distributions. 
 
-It is useful to test these modification with a single distribution before applying the changes to all distributions. See the test-update-behavior for that.
+It is useful to test these modifications with a single distribution before applying the changes to all distributions. See the test-update-behavior for that.
 
 ### Cache policy update details
 For the first cache policy update section, the distribution has to have at least one behavior that has all of the following properties:
@@ -83,7 +83,7 @@ Each matching distribution has each of behavior that meets the criteria above up
 ### Custom Header Update details
 For this section, we look for distributions that don't already have a custom header of Origin, and that have a bucket origin that has a public or public-custom-cors tag.
 
-Then we update each matching origin with the new custom header. There are some distributions that have multiple origins, so we need to check which origins need update in additional to figuring out which distributions need updating.
+Then we update each matching origin with the new custom header. There are some distributions that have multiple origins, so we need to check which origins need updating in addition to figuring out which distributions need updating.
 
 
 ## test-update-behavior
