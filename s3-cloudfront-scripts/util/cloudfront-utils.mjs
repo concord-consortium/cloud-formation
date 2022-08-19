@@ -1,4 +1,8 @@
 function maybeUpdateBehavior(distribution, behavior, modifyBehavior) {
+  if (!modifyBehavior) {
+    // the caller doesn't want to modify any behaviors
+    return;
+  }
   const origin = distribution.Origins.Items.find((origin) => origin.Id === behavior.TargetOriginId);
   const behaviorPathDescription = behavior.PathPattern ? `pathPattern: ${behavior.PathPattern}` : 'default behavior';
   if (modifyBehavior(distribution, behavior)) {
@@ -8,9 +12,21 @@ function maybeUpdateBehavior(distribution, behavior, modifyBehavior) {
   }
 }
 
+function maybeUpdateOrigin(origin, modifyOrigin) {
+  if (!modifyOrigin){
+    // the caller doesn't want to modify any origins
+  }
+
+  if (modifyOrigin(origin)) {
+    console.log(`  updated origin: ${origin.Id} ${origin.DomainName}`);
+  } else {
+    console.log(`  skipped origin: ${origin.Id} ${origin.DomainName}`);
+  }
+}
+
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-export async function updateDistributions(cloudfront, distributionIds, modifyBehavior) {
+export async function updateDistributions(cloudfront, distributionIds, modifyBehavior, modifyOrigin) {
   for (const distributionId of distributionIds) {
     const response = await cloudfront.getDistributionConfig({Id: distributionId}).promise();
     const distributionConfig = response.DistributionConfig;
@@ -22,6 +38,10 @@ export async function updateDistributions(cloudfront, distributionIds, modifyBeh
 
     for(const cacheBehavior of distributionConfig.CacheBehaviors.Items) {
       maybeUpdateBehavior(distributionConfig, cacheBehavior, modifyBehavior);
+    }
+
+    for(const origin of distributionConfig.Origins.Items) {
+      maybeUpdateOrigin(origin, modifyOrigin);
     }
 
     // try waiting 3s to prevent throttling errors

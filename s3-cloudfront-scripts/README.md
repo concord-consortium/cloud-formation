@@ -52,6 +52,7 @@ Generate a `behaviors.csv` with information about the behaviors of all of the Cl
 - **PathPattern:** path pattern of the behavior, if this is the default behavior it will be blank
 - **OriginDomainName:** domain name of the origin associated with the behavior
 - **OriginPath:** path of the origin associated with the behavior
+- **OriginCustomHeaders:** any custom headers added to the distribution's Origin
 - **BucketName:** name of the bucket, this is computed from the domain of the origin, blank if it isn't a bucket
 - **BucketType:** BucketType tag of the bucket. blank if the behavior isn't associated with a bucket, or `error fetching` if an error happened when requesting the bucket tags
 - **ViewerProtocolPolicy:** how the behavior handles http requests
@@ -63,18 +64,27 @@ Generate a `behaviors.csv` with information about the behaviors of all of the Cl
 
 ## cf-behavior-list (update enabled)
 
-If you uncomment the last line in the `cf-behavior-list.mjs` file then the script will also update the distributions. This was used to update all behaviors using public S3 buckets so they would use the S3-CORS cache policy.
+At the end of `cf-behavior-list.mjs` are two sections you can uncomment to update the distributions. The first was used to update all behaviors using public S3 buckets so they would use the S3-CORS cache policy. The second was used to update all origins pointing at public S3 buckets so they'd have a custom header of `Origin: https://concord.org`
 
-The update script part of the script looks for distributions meeting the following criteria. It has to have at least one behavior that has all of the following properties:
+These sections looks for distributions meeting certain criteria. Then all matching distributions are passed to `updateDistributions` along with an option `modifyBehavior` and `modifyOrigin` function.
+
+The update code is written to be modular so you can use these sections as a guide and add your own code for updating all of the distributions. 
+
+It is useful to test these modifications with a single distribution before applying the changes to all distributions. See the test-update-behavior for that.
+
+### Cache policy update details
+For the first cache policy update section, the distribution has to have at least one behavior that has all of the following properties:
 - has a bucket origin (see the BucketName column above)
 - the bucket origin has a BucketType tag of 'public' or 'public-custom-cors'
 - the behavior doesn't already have a CachePolicyId of one of the two S3-CORS cache policies
 
-Each matching distribution has each of behavior that meets the criteria above updated to usse the S3-CORS cache policy. Cache Policies can only be associated with 100 distributions. So the script works with both the S3-CORS and S3-CORS-1 policies.
+Each matching distribution has each of behavior that meets the criteria above updated to use the S3-CORS cache policy. Cache Policies can only be associated with 100 distributions. So the script works with both the S3-CORS and S3-CORS-1 policies.
 
-The update code is written to be modular so you can replace the `modifyBehavior` function to look for different conditions and/or update the behavior differently. But note that that thre is a separate filter to figure out which distributions need updating, so that filter needs to be updated too.
+### Custom Header Update details
+For this section, we look for distributions that don't already have a custom header of Origin, and that have a bucket origin that has a public or public-custom-cors tag.
 
-It is useful to test these modification with a single distribution before applying the changes to all distributions. See the test-udpate-behavior for that.
+Then we update each matching origin with the new custom header. There are some distributions that have multiple origins, so we need to check which origins need updating in addition to figuring out which distributions need updating.
+
 
 ## test-update-behavior
 
