@@ -12,6 +12,12 @@
       "Type": "String",
       "Description": "Enter name to use for Kinesis transform function (this needs to change if lambda code is updated)",
       "Default": "log_ingester_transform"
+    },
+    "ApiDomainName": {
+      "Type": "String",
+      "Description": "Enter api.concord.org or api.concordqa.org. Default is api.concord.org.",
+      "Default": "api.concord.org",
+      "AllowedValues" : ["api.concord.org", "api.concordqa.org"]
     }
   },
 
@@ -242,6 +248,16 @@
           "Types": ["EDGE"]
         },
         "FailOnWarnings" : true
+      }
+    },
+
+    "LogAPIGatewayBasePathMapping": {
+      "Type": "AWS::ApiGateway::BasePathMapping",
+      "Properties": {
+        "BasePath": "log-ingester",
+        "DomainName": {"Ref": "ApiDomainName"},
+        "RestApiId": {"Ref": "LogAPIGateway"},
+        "Stage": "latest"
       }
     },
 
