@@ -185,7 +185,7 @@ Resources:
         #
         # So we should try switching to using their application in the
         # serverlessrepo instead of ours. 
-        ApplicationId: arn:aws:serverlessrepo:us-east-1:816253370536:applications/cloudfront-authorization-at-edge
+        ApplicationId: arn:aws:serverlessrepo:us-east-1:520945424137:applications/cloudfront-authorization-at-edge
         SemanticVersion: !Ref SemanticVersion
       Parameters:
         CreateCloudFrontDistribution: "false"
