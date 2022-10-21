@@ -172,20 +172,11 @@ Resources:
     Type: AWS::Serverless::Application
     Properties:
       Location:
-        # This application lives in the concordqa account and it references
-        # content in a concordqa bucket.
-        #
-        # The application was forked from an AWS example that didn't support
-        # user pool groups at the time. This AWS example now supports groups.
-        # Additionally the AWS example always built a large react app just as a
-        # demo. This long build was causing problems so it was removed from our
-        # fork. The updated AWS example has an option to only deploy a simple
-        # static index.html file instead. Hopefully using that option would fix
-        # things for us. 
-        #
-        # So we should try switching to using their application in the
-        # serverlessrepo instead of ours. 
-        ApplicationId: arn:aws:serverlessrepo:us-east-1:816253370536:applications/cloudfront-authorization-at-edge
+        # We initially used a customized version of the AWS app:
+        # ApplicationId: arn:aws:serverlessrepo:us-east-1:816253370536:applications/cloudfront-authorization-at-edge
+        # https://github.com/concord-consortium/cloudfront-authorization-at-edge
+        # Our customizations were merged upstream, so we now use the official app.
+        ApplicationId: arn:aws:serverlessrepo:us-east-1:520945424137:applications/cloudfront-authorization-at-edge
         SemanticVersion: !Ref SemanticVersion
       Parameters:
         CreateCloudFrontDistribution: "false"
