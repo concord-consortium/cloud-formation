@@ -1,0 +1,265 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Shutterbug stack (HTML snapshot service)
+# Metadata:
+
+Parameters:
+  Environment:
+    Type: String
+    Description: Lowercase name of environment (either staging or production)
+    Default: staging
+    AllowedValues: [staging, production]
+  AlarmEmail:
+    Type: String
+    Description: Email address to notify when the Shutterbug has triggered an alarm
+  LambdaZipFilename:
+    Type: String
+    Description: Filename of lambda .zip file in s3://concord-devops/shutterbug-lambda
+    Default: package.zip
+
+Resources:
+
+  ProxyLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Shutterbug service
+      FunctionName: !Sub "shutterbug-${Environment}"
+      Handler: index.handler
+      MemorySize: 3072
+      Role: !GetAtt [ProxyLambdaIamRole, Arn]
+      Runtime: nodejs16.x
+      Timeout: 30
+      Code:
+        S3Bucket: concord-devops
+        S3Key: !Sub "shutterbug-lambda/${LambdaZipFilename}"
+      Tags:
+        - Key: Environment
+          Value: !Ref "Environment"
+
+  ProxyLambdaIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "shutterbug-${Environment}-lambda"
+      # Path:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        -
+         PolicyName: !Sub "shutterbug-${Environment}-lambda"
+         PolicyDocument:
+           Version: 2012-10-17
+           Statement:
+              -
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/shutterbug-${Environment}:*"
+              -
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:ListBucketVersion
+                Resource:
+                  - arn:aws:s3:::ccshutterbug
+              -
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:DeleteObject
+                  - s3:DeleteObjectVersion
+                Resource:
+                  - arn:aws:s3:::ccshutterbug/*
+
+  ApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "shutterbug-${Environment}"
+      Description: Accepts snapshot requests and proxies them to Shutterbug AWS Lambda
+      EndpointConfiguration:
+        Types:
+          - EDGE
+      FailOnWarnings: true
+
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt [ApiGatewayCloudWatchLogsRole, Arn]
+
+  ApiGatewayCloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      RoleName: !Sub "shutterbug-${Environment}-api-cloudwatch"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
+  ApiGatewayStage:
+    DependsOn: ApiGatewayAccount
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId: !Ref ApiGatewayDeployment
+      MethodSettings:
+        -
+          DataTraceEnabled: true
+          HttpMethod: "*"
+          LoggingLevel: INFO
+          ResourcePath: "/*"
+      RestApiId: !Ref ApiGateway
+      StageName: latest
+
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayPostRequest
+      - ApiGatewayOptionsRequest
+    Properties:
+      RestApiId: !Ref ApiGateway
+
+  ApiGatewayPostInvoke:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt [ProxyLambdaFunction, Arn]
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/"
+
+  ApiGatewayPostRequest:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !GetAtt [ApiGateway, RootResourceId]
+      RestApiId: !Ref ApiGateway
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+          - lambdaArn: !GetAtt [ProxyLambdaFunction, Arn]
+        IntegrationResponses:
+          -
+            StatusCode: "200"
+            ResponseTemplates:
+              "application/json": ""
+      MethodResponses:
+        -
+          StatusCode: "200"
+          ResponseModels:
+            "text/xml": Empty
+
+  ApiGatewayOptionsRequest:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !GetAtt [ApiGateway, RootResourceId]
+      RestApiId: !Ref ApiGateway
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+            StatusCode: '200'
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          StatusCode: '200'
+
+  ApiGatewayMapping:
+    DependsOn: ApiGatewayStage
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      BasePath: !Sub "shutterbug-${Environment}"
+      DomainName: api.concord.org
+      RestApiId: !Ref ApiGateway
+      Stage: latest
+
+  # Alarms
+
+  AlarmNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        -
+          Endpoint: !Ref AlarmEmail
+          Protocol: email
+
+  ApiGatewayErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "shutterbug-${Environment}-api-alarm"
+      AlarmDescription: Alarms when an API call results in a 5xx error
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+      Dimensions:
+        -
+          Name: ApiName
+          Value: !Sub "shutterbug-${Environment}"
+      MetricName: "5XXError"
+      Namespace: AWS/ApiGateway
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+
+  ApiGatewayProxyLambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "shutterbug-${Environment}-lambda-alarm"
+      AlarmDescription: Alarms when the lambda call results in an error
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+      Dimensions:
+        -
+          Name: Resource
+          Value: !Sub "shutterbug-${Environment}"
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+
+Outputs:
+  RawShutterbugUrl:
+    Description: Raw URL of the API gateway for Shutterbug
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/latest/"
+  NiceShutterbugUrl:
+    Description: Nice URL of the API gateway for Shutterbug
+    Value: !Sub "https://api.concord.org/shutterbug-${Environment}/"
