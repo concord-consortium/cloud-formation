@@ -1,0 +1,95 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Nice Log Ingester url",
+  "Parameters": {
+    "BaseDomainName": {
+      "Type": "String",
+      "Description": "Enter concord.org or concordqa.org. Default is concord.org.",
+      "Default": "concord.org",
+      "AllowedValues": ["concord.org", "concordqa.org"]
+    }
+  },
+  "Mappings": {
+    "SSLCertificateMap": {
+      "concord.org": {
+        "Id": "arn:aws:acm:us-east-1:612297603577:certificate/2b62511e-ccc8-434b-ba6c-a8c33bbd509e"
+      },
+      "concordqa.org": {
+        "Id": "arn:aws:acm:us-east-1:816253370536:certificate/7b8bb00e-7aa4-4b9f-a722-f49c828af83c"
+      }
+    },
+    "HostedZoneId": {
+      "concord.org": {
+        "Id": "Z2P4W3M7MDAUV6"
+      },
+      "concordqa.org": {
+        "Id": "Z270F8MK5GG1RH"
+      }
+    }
+  },
+  "Resources": {
+    "LogIngesterDistribution": {
+      "Metadata": {
+        "Purpose": "Defines a origin and behavior to map to the log ingester api domain"
+      },
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Enabled": true,
+          "Aliases": [
+            {"Fn::Join": [".", ["logger", {"Ref": "BaseDomainName"}]]}
+          ],
+          "HttpVersion": "http2",
+          "Origins": [
+            {
+              "Id" : "apiOrigin",
+              "DomainName": {"Fn::Join": [".", ["api", {"Ref": "BaseDomainName"}]]},
+              "OriginPath": "/log-ingester",
+              "CustomOriginConfig" : {
+                "HTTPSPort" : "443",
+                "OriginProtocolPolicy" : "https-only",
+                "OriginSSLProtocols": ["TLSv1.2"]
+              }
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "AllowedMethods" : [ "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT" ],
+            "Compress": true,
+            "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+            "TargetOriginId" : "apiOrigin",
+            "ViewerProtocolPolicy" : "allow-all",
+            "ResponseHeadersPolicyId": "5cc3b908-e619-4b99-88e5-2cf7f45965bd"
+          },
+          "ViewerCertificate": {
+            "AcmCertificateArn": {"Fn::FindInMap": ["SSLCertificateMap", {"Ref": "BaseDomainName"}, "Id"]},
+            "MinimumProtocolVersion": "TLSv1.2_2021",
+            "SslSupportMethod": "sni-only"
+          }
+        },
+        "Tags": [
+          {
+            "Key": "DeployedVia",
+            "Value": "Cloudformation"
+          }
+        ]
+      }
+    },
+    "LoggerSubDomain": {
+      "Metadata": {
+        "Purpose": "Defines a origin and behavior to map to the log ingester api domain"
+      },
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+        "Name": {"Fn::Join": [".", ["logger", {"Ref": "BaseDomainName"}]]},
+        "Type": "A",
+        "HostedZoneId": {"Fn::FindInMap": ["HostedZoneId", {"Ref": "BaseDomainName"}, "Id"]},
+        "AliasTarget": {
+          "DNSName": {"Fn::GetAtt": ["LogIngesterDistribution", "DomainName"]},
+          "EvaluateTargetHealth": false,
+          "HostedZoneId": "Z2FDTNDATAQYW2"
+        }
+      },
+      "DependsOn": "LogIngesterDistribution"
+    }
+  }
+}
