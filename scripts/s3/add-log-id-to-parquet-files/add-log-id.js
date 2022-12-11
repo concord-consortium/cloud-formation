@@ -87,8 +87,6 @@ async function run() {
         allKeys.push(item.Key)
       }
 
-      break;
-
       truncated = response.IsTruncated;
       if (truncated) {
         pageMarker = response.Contents.slice(-1)[0].Key;
