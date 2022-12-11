@@ -2,6 +2,8 @@ import { S3Client, ListObjectsCommand, GetObjectCommand, PutObjectCommand } from
 import parquetjs from 'parquetjs';
 import { nanoid } from 'nanoid'
 import fs from "fs"
+import path from "path"
+import mkdirpsync from "mkdirpsync"
 
 const PARQUET_SUFFIX = ".parquet";
 
@@ -74,6 +76,7 @@ async function run() {
 
   // gather a list of all files
   let pageNum = 1
+  let totalSize = {}
   const allKeys = []
   while (truncated) {
     try {
@@ -83,6 +86,8 @@ async function run() {
       for (const item of response.Contents) {
         allKeys.push(item.Key)
       }
+
+      break;
 
       truncated = response.IsTruncated;
       if (truncated) {
@@ -95,8 +100,6 @@ async function run() {
     }
   }
 
-  console.log("Total number of keys found:", allKeys.length)
-
   const nowInSeconds = Date.now() / 1000
 
   let index = 0;
@@ -107,7 +110,7 @@ async function run() {
       const getResponse = await s3Client.send(new GetObjectCommand({Bucket, Key: key}))
 
       removeFile(TEMP_INPUT)
-      removeFile(TEMP_OUTPUT)
+      //removeFile(TEMP_OUTPUT)
 
       const inputFilePath = await createStreamFile(getResponse.Body, TEMP_INPUT)
       const reader = await parquetjs.ParquetReader.openFile(inputFilePath)
@@ -116,8 +119,14 @@ async function run() {
       const hasId = Object.keys(cursor.schema.schema).indexOf("id") !== -1;
       if (!hasId) {
         if (update) {
+          const newKey = key.replace(/^processed_logs\//, "processed_logs_with_id/")
+          const newPath = `./${newKey}`
+          mkdirpsync(path.dirname(newPath))
+
+          const thisUpdateTime = Date.now()
+
           const schemaWithId = new parquetjs.ParquetSchema({id: {type: "UTF8"}, ...cursor.schema.schema})
-          const writer = await parquetjs.ParquetWriter.openFile(schemaWithId, TEMP_OUTPUT)
+          const writer = await parquetjs.ParquetWriter.openFile(schemaWithId, newPath)
 
           let row = null;
           while (row = await cursor.next()) {
@@ -129,19 +138,13 @@ async function run() {
           }
           await writer.close()
 
-          const newKey = key.replace(/^processed_logs\//, "processed_logs_with_id/")
-          const putResponse = await s3Client.send(new PutObjectCommand({Bucket, Key: newKey, Body: fs.readFileSync(TEMP_OUTPUT)}))
-
           index++
           const now = Date.now()
           const elapsed = now - startUpdateTime
+          const updateTime = now - thisUpdateTime
           const perUpdate = elapsed / index
           const remaining = (allKeys.length - index) * perUpdate;
-          console.log(`${index} of ${allKeys.length}: ${newKey} (elapsed: ${niceTime(elapsed)}, perUpdate: ${niceTime(perUpdate)}, remaining: ${niceTime(remaining)})`)
-
-          // if (index >= 20) {
-          //   process.exit(1)
-          // }
+          console.log(`${index} of ${allKeys.length}: ${newKey} (thisUpdate: ${niceTime(updateTime)}, elapsed: ${niceTime(elapsed)}, perUpdate: ${niceTime(perUpdate)}, remaining: ${niceTime(remaining)})`)
         } else {
           console.log(key, "NO ID")
         }
@@ -157,5 +160,7 @@ async function run() {
   const duration = new Date() - startTime
 
   console.log(`\n\nTOTAL TIME: ${niceTime(duration)} (${duration})`)
+
+  console.log(`NEXT STEP: aws s3 cp processed_logs_with_id s3://${Bucket}/processed_logs_with_id --recursive `)
 }
 run();
