@@ -1,5 +1,5 @@
 import { S3Client, ListObjectsCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import parquetjs from 'parquetjs';
+import parquetjs from 'parquetjs-lite';
 import { nanoid } from 'nanoid'
 import fs from "fs"
 import path from "path"
@@ -8,7 +8,6 @@ import mkdirpsync from "mkdirpsync"
 const PARQUET_SUFFIX = ".parquet";
 
 const TEMP_INPUT = "/tmp/parquet-input";
-const TEMP_OUTPUT = "/tmp/parquet-output";
 
 // Set the AWS Region.
 export const s3Client = new S3Client({ region: "us-east-1" });
@@ -84,7 +83,9 @@ async function run() {
       const response = await s3Client.send(new ListObjectsCommand(bucketParams));
 
       for (const item of response.Contents) {
-        allKeys.push(item.Key)
+        if (item.Key.endsWith(PARQUET_SUFFIX)) {
+          allKeys.push(item.Key)
+        }
       }
 
       truncated = response.IsTruncated;
@@ -130,7 +131,7 @@ async function run() {
           while (row = await cursor.next()) {
             // update timestamp to use ms if it was stored in seconds (this was a bug in the initial copy S3 when the log-ingester was setup)
             if (row.timestamp < nowInSeconds) {
-              row.timestamp = row.timestamp * 1000;
+              row.timestamp = row.timestamp * BigInt(1000);
             }
             await writer.appendRow({id: nanoid(), ...row})
           }
@@ -150,8 +151,7 @@ async function run() {
         console.log(key, "ALREADY HAS ID")
       }
     } catch (err) {
-      console.log("Error", err);
-      truncated = false;
+      console.log("Error", key, ":", err);
     }
   }
 
