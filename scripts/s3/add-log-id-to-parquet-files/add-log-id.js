@@ -73,18 +73,22 @@ async function run() {
   let truncated = true;
   let pageMarker;
 
+  // NOTE: this was added as the production update had to be split due to disk space
+  const SKIP_UNTIL = "2021/04/23/00/2021-04-23.parquet";
+  let skip = true
+
   // gather a list of all files
   let pageNum = 1
-  let totalSize = {}
-  const allKeys = []
+  const filesToProcess = []
   while (truncated) {
     try {
       console.log("Listing page", pageNum++)
       const response = await s3Client.send(new ListObjectsCommand(bucketParams));
 
       for (const item of response.Contents) {
-        if (item.Key.endsWith(PARQUET_SUFFIX)) {
-          allKeys.push(item.Key)
+        skip = skip && !item.Key.includes(SKIP_UNTIL)
+        if (item.Key.endsWith(PARQUET_SUFFIX) && !skip) {
+          filesToProcess.push({key: item.Key, size: item.Size})
         }
       }
 
@@ -104,12 +108,14 @@ async function run() {
   let index = 0;
   const startUpdateTime = Date.now();
 
-  for (const key of allKeys) {
+  for (const {key, size} of filesToProcess) {
+    index++
+    console.log(`${index} of ${filesToProcess.length}: ${key}: processing ${size} KB file...`)
+
     try {
       const getResponse = await s3Client.send(new GetObjectCommand({Bucket, Key: key}))
 
       removeFile(TEMP_INPUT)
-      //removeFile(TEMP_OUTPUT)
 
       const inputFilePath = await createStreamFile(getResponse.Body, TEMP_INPUT)
       const reader = await parquetjs.ParquetReader.openFile(inputFilePath)
@@ -137,13 +143,12 @@ async function run() {
           }
           await writer.close()
 
-          index++
           const now = Date.now()
           const elapsed = now - startUpdateTime
           const updateTime = now - thisUpdateTime
           const perUpdate = elapsed / index
-          const remaining = (allKeys.length - index) * perUpdate;
-          console.log(`${index} of ${allKeys.length}: ${newKey} (thisUpdate: ${niceTime(updateTime)}, elapsed: ${niceTime(elapsed)}, perUpdate: ${niceTime(perUpdate)}, remaining: ${niceTime(remaining)})`)
+          const remaining = (filesToProcess.length - index) * perUpdate;
+          console.log(`${index} of ${filesToProcess.length}: ${newKey} (thisUpdate: ${niceTime(updateTime)}, elapsed: ${niceTime(elapsed)}, perUpdate: ${niceTime(perUpdate)}, remaining: ${niceTime(remaining)})\n`)
         } else {
           console.log(key, "NO ID")
         }
@@ -159,6 +164,6 @@ async function run() {
 
   console.log(`\n\nTOTAL TIME: ${niceTime(duration)} (${duration})`)
 
-  console.log(`NEXT STEP: aws s3 cp processed_logs_with_id s3://${Bucket}/processed_logs_with_id --recursive `)
+  console.log(`NEXT STEP: time aws s3 cp processed_logs_with_id s3://${Bucket}/processed_logs_with_id --recursive `)
 }
 run();
