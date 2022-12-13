@@ -74,7 +74,7 @@ async function run() {
   let pageMarker;
 
   // NOTE: this was added as the production update had to be split due to disk space
-  const SKIP_UNTIL = "2021/04/23/00/2021-04-23.parquet";
+  const SKIP_UNTIL = "2022-05-16";
   let skip = true
 
   // gather a list of all files
