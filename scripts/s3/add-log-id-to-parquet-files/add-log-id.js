@@ -14,7 +14,7 @@ export const s3Client = new S3Client({ region: "us-east-1" });
 
 const environment = process.argv[2];
 if (["production", "staging"].indexOf(environment) === -1) {
-  console.error("Usage: node ./list-files.js <production|staging> [update]")
+  console.error("Usage: node ./add-log-id.js <production|staging> [update]")
   process.exit(1)
 }
 const update = process.argv[3] === "update"
