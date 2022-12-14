@@ -228,8 +228,8 @@ Parameters:
 
   LoggerUri:
     Type: String
-    Default: //cc-log-manager.herokuapp.com/api/logs
-    Description: Protocol relative uri for log manager api endpoint. Default is //cc-log-manager.herokuapp.com/api/logs.
+    Default: //logger.concord.org/logs
+    Description: Protocol relative uri for log manager api endpoint. Default is //logger.concord.org/logs.
 
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
