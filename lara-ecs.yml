@@ -133,8 +133,8 @@ Parameters:
     Default: https://s3.amazonaws.com/concord-devops/cloud-formation
   LoggerUri:
     Type: String
-    Default: //logger.concord.org/logs
-    Description: Protocol relative uri for log manager api endpoint. Default is //logger.concord.org/logs.
+    Default: https://logger.concord.org/logs
+    Description: Protocol relative uri for log manager api endpoint. Default is https://logger.concord.org/logs.
   ReportServiceToken:
     Type: String
     Description: secret key for LARA to use to send data to the report service
