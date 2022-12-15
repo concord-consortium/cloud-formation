@@ -228,8 +228,8 @@ Parameters:
 
   LoggerUri:
     Type: String
-    Default: //logger.concord.org/logs
-    Description: Protocol relative uri for log manager api endpoint. Default is //logger.concord.org/logs.
+    Default: https://logger.concord.org/logs
+    Description: Protocol relative uri for log manager api endpoint. Default is https://logger.concord.org/logs.
 
 Conditions:
   PortalPagesLibraryDefined: !Not [!Equals [!Ref PortalPagesLibraryVersion, ""]]
