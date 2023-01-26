@@ -44,10 +44,6 @@ Parameters:
     Default: authoring
     Description: Client ID used with OAuth2 connection to the portal. This is used
       globably for all of the Portals configured for this LARA instance.
-  ITSITestSecret:
-    Type: String
-    Description: The OAuth2 key to authenticate via itsi-test. If this is not set, the portal
-      will not be configured.
   LearnMigrateSecret:
     Type: String
     Description: The OAuth2 key to authenticate via learn-migrate. If this is not set, the portal
@@ -59,14 +55,6 @@ Parameters:
   AssessmentPortalSecret:
     Type: String
     Description: The OAuth2 key to authenticate via asessment.portal. If this is not set, the portal
-      will not be configured.
-  HASPortalSecret:
-    Type: String
-    Description: The OAuth2 key to authenticate via has.portal. If this is not set, the portal
-      will not be configured.
-  ITSIPortalSecret:
-    Type: String
-    Description: The OAuth2 key to authenticate via itsi.portal. If this is not set, the portal
       will not be configured.
   LearnPortalSecret:
     Type: String
@@ -177,12 +165,9 @@ Parameters:
 
 Conditions:
   AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
-  AddITSITest: !Not [!Equals [!Ref ITSITestSecret, ""]]
   AddLearnMigrate: !Not [!Equals [!Ref LearnMigrateSecret, ""]]
   AddLearnStaging: !Not [!Equals [!Ref LearnStagingSecret, ""]]
   AddAssessmentPortal: !Not [!Equals [!Ref AssessmentPortalSecret, ""]]
-  AddHASPortal: !Not [!Equals [!Ref HASPortalSecret, ""]]
-  AddITSIPortal: !Not [!Equals [!Ref ITSIPortalSecret, ""]]
   AddLearnPortal: !Not [!Equals [!Ref LearnPortalSecret, ""]]
   AddQAPortal: !Not [!Equals [!Ref QAPortalSecret, ""]] # Also check for QAPortalURL?
   CreateLoadBalancerHTTPRedirectCond: !Equals [!Ref CreateLoadBalancerHTTPRedirect, 'true']
@@ -399,10 +384,7 @@ Resources:
           - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnMigrate, LEARN_MIGRATE, !Ref 'AWS::NoValue']
-            - !If [ AddITSITest, ITSI_TEST, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
-            - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
-            - !If [ AddITSIPortal, ITSI, !Ref 'AWS::NoValue']
             - !If [ AddLearnPortal, Learn, !Ref 'AWS::NoValue']
             - !If [ AddQAPortal, QA_PORTAL, !Ref 'AWS::NoValue']
 
@@ -426,23 +408,6 @@ Resources:
           - AddFakeAuthProviderCond
           - Name: CONCORD_HAS_STAGING_URL
             Value: http://has.staging.concord.org/
-          - !Ref 'AWS::NoValue'
-
-        # itsi test configuration
-        - !If
-          - AddITSITest
-          - Name: CONCORD_ITSI_TEST_CLIENT_ID
-            Value: !Ref PortalClientID
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddITSITest
-          - Name: CONCORD_ITSI_TEST_CLIENT_SECRET
-            Value: !Ref ITSITestSecret
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddITSITest
-          - Name: CONCORD_ITSI_TEST_URL
-            Value: https://itsi-test.portal.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn migrate configuration
@@ -494,50 +459,6 @@ Resources:
           - AddAssessmentPortal
           - Name: CONCORD_ASSESSMENT_URL
             Value: https://ngss-assessment.portal.concord.org/
-          - !Ref 'AWS::NoValue'
-
-        # has configuration
-        - !If
-          - AddHASPortal
-          - Name: CONCORD_HAS_CLIENT_ID
-            Value: !Ref PortalClientID
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddHASPortal
-          - Name: CONCORD_HAS_CLIENT_SECRET
-            Value: !Ref HASPortalSecret
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddHASPortal
-          - Name: CONCORD_HAS_DISPLAY_NAME
-            Value: HAS
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddHASPortal
-          - Name: CONCORD_HAS_URL
-            Value: https://has.portal.concord.org/
-          - !Ref 'AWS::NoValue'
-
-        # itsi configuration
-        - !If
-          - AddITSIPortal
-          - Name: CONCORD_ITSI_CLIENT_ID
-            Value: !Ref PortalClientID
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddITSIPortal
-          - Name: CONCORD_ITSI_CLIENT_SECRET
-            Value: !Ref ITSIPortalSecret
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddITSIPortal
-          - Name: CONCORD_ITSI_DISPLAY_NAME
-            Value: ITSI
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddITSIPortal
-          - Name: CONCORD_ITSI_URL
-            Value: https://itsi.portal.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn configuration
@@ -760,10 +681,7 @@ Resources:
           - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnMigrate, LEARN_MIGRATE, !Ref 'AWS::NoValue']
-            - !If [ AddITSITest, ITSI_TEST, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
-            - !If [ AddHASPortal, HAS, !Ref 'AWS::NoValue']
-            - !If [ AddITSIPortal, ITSI, !Ref 'AWS::NoValue']
             - !If [ AddLearnPortal, Learn, !Ref 'AWS::NoValue']
             - !If [ AddQAPortal, QA_PORTAL, !Ref 'AWS::NoValue']
 
@@ -787,23 +705,6 @@ Resources:
           - AddFakeAuthProviderCond
           - Name: CONCORD_HAS_STAGING_URL
             Value: http://has.staging.concord.org/
-          - !Ref 'AWS::NoValue'
-
-        # itsi test configuration
-        - !If
-          - AddITSITest
-          - Name: CONCORD_ITSI_TEST_CLIENT_ID
-            Value: !Ref PortalClientID
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddITSITest
-          - Name: CONCORD_ITSI_TEST_CLIENT_SECRET
-            Value: !Ref ITSITestSecret
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddITSITest
-          - Name: CONCORD_ITSI_TEST_URL
-            Value: https://itsi-test.portal.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn docker staging configuration
@@ -855,50 +756,6 @@ Resources:
           - AddAssessmentPortal
           - Name: CONCORD_ASSESSMENT_URL
             Value: https://ngss-assessment.portal.concord.org/
-          - !Ref 'AWS::NoValue'
-
-        # has configuration
-        - !If
-          - AddHASPortal
-          - Name: CONCORD_HAS_CLIENT_ID
-            Value: !Ref PortalClientID
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddHASPortal
-          - Name: CONCORD_HAS_CLIENT_SECRET
-            Value: !Ref HASPortalSecret
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddHASPortal
-          - Name: CONCORD_HAS_DISPLAY_NAME
-            Value: HAS
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddHASPortal
-          - Name: CONCORD_HAS_URL
-            Value: https://has.portal.concord.org/
-          - !Ref 'AWS::NoValue'
-
-        # itsi configuration
-        - !If
-          - AddITSIPortal
-          - Name: CONCORD_ITSI_CLIENT_ID
-            Value: !Ref PortalClientID
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddITSIPortal
-          - Name: CONCORD_ITSI_CLIENT_SECRET
-            Value: !Ref ITSIPortalSecret
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddITSIPortal
-          - Name: CONCORD_ITSI_DISPLAY_NAME
-            Value: ITSI
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddITSIPortal
-          - Name: CONCORD_ITSI_URL
-            Value: https://itsi.portal.concord.org/
           - !Ref 'AWS::NoValue'
 
         # learn confiuration
@@ -1073,9 +930,6 @@ Metadata:
       - AddFakeAuthProvider
       - PortalClientID
       - AssessmentPortalSecret
-      - HASPortalSecret
-      - ITSITestSecret
-      - ITSIPortalSecret
       - LearnMigrateSecret
       - LearnPortalSecret
       - LearnStagingSecret
