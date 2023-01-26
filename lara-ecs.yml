@@ -33,12 +33,6 @@ Parameters:
     Description: List of VPC Subnet Ids, if this is set it will override the subnets
       from the ClusterStackName. These subnets are used for by the application load balancer
 
-  AddFakeAuthProvider:
-    Type: String
-    AllowedValues: ['true', 'false']
-    Description: The LARA Oauth2 code requires two authentication providers
-      in some places of the code, so if you are only going to configure one then set
-      this to true
   PortalClientID:
     Type: String
     Default: authoring
@@ -164,7 +158,6 @@ Parameters:
     Default: 'false'
 
 Conditions:
-  AddFakeAuthProviderCond: !Equals [!Ref AddFakeAuthProvider, 'true']
   AddLearnMigrate: !Not [!Equals [!Ref LearnMigrateSecret, ""]]
   AddLearnStaging: !Not [!Equals [!Ref LearnStagingSecret, ""]]
   AddAssessmentPortal: !Not [!Equals [!Ref AssessmentPortalSecret, ""]]
@@ -381,34 +374,11 @@ Resources:
         - Name: CONCORD_CONFIGURED_PORTALS
           Value: !Join
           - ' '
-          - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnMigrate, LEARN_MIGRATE, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
             - !If [ AddLearnPortal, Learn, !Ref 'AWS::NoValue']
             - !If [ AddQAPortal, QA_PORTAL, !Ref 'AWS::NoValue']
-
-        # fake auth provider config
-        - !If
-          - AddFakeAuthProviderCond
-          - Name: CONCORD_HAS_STAGING_CLIENT_ID
-            Value: localhost
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddFakeAuthProviderCond
-          - Name: CONCORD_HAS_STAGING_CLIENT_SECRET
-            Value: unknown
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddFakeAuthProviderCond
-          - Name: CONCORD_HAS_STAGING_DISPLAY_NAME
-            Value: Do NOT Use Please
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddFakeAuthProviderCond
-          - Name: CONCORD_HAS_STAGING_URL
-            Value: http://has.staging.concord.org/
-          - !Ref 'AWS::NoValue'
 
         # learn migrate configuration
         - !If
@@ -678,34 +648,11 @@ Resources:
         - Name: CONCORD_CONFIGURED_PORTALS
           Value: !Join
           - ' '
-          - - !If [ AddFakeAuthProviderCond, HAS_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnMigrate, LEARN_MIGRATE, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
             - !If [ AddLearnPortal, Learn, !Ref 'AWS::NoValue']
             - !If [ AddQAPortal, QA_PORTAL, !Ref 'AWS::NoValue']
-
-        # fake auth provider config
-        - !If
-          - AddFakeAuthProviderCond
-          - Name: CONCORD_HAS_STAGING_CLIENT_ID
-            Value: localhost
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddFakeAuthProviderCond
-          - Name: CONCORD_HAS_STAGING_CLIENT_SECRET
-            Value: unknown
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddFakeAuthProviderCond
-          - Name: CONCORD_HAS_STAGING_DISPLAY_NAME
-            Value: Do NOT Use Please
-          - !Ref 'AWS::NoValue'
-        - !If
-          - AddFakeAuthProviderCond
-          - Name: CONCORD_HAS_STAGING_URL
-            Value: http://has.staging.concord.org/
-          - !Ref 'AWS::NoValue'
 
         # learn docker staging configuration
         - !If
@@ -927,7 +874,6 @@ Metadata:
     - Label:
         default: "Portals"
       Parameters:
-      - AddFakeAuthProvider
       - PortalClientID
       - AssessmentPortalSecret
       - LearnMigrateSecret
