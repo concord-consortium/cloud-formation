@@ -374,7 +374,7 @@ Resources:
         - Name: CONCORD_CONFIGURED_PORTALS
           Value: !Join
           - ' '
-            - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
+          - - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnMigrate, LEARN_MIGRATE, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
             - !If [ AddLearnPortal, Learn, !Ref 'AWS::NoValue']
@@ -648,7 +648,7 @@ Resources:
         - Name: CONCORD_CONFIGURED_PORTALS
           Value: !Join
           - ' '
-            - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
+          - - !If [ AddLearnStaging, LEARN_STAGING, !Ref 'AWS::NoValue']
             - !If [ AddLearnMigrate, LEARN_MIGRATE, !Ref 'AWS::NoValue']
             - !If [ AddAssessmentPortal, ASSESSMENT, !Ref 'AWS::NoValue']
             - !If [ AddLearnPortal, Learn, !Ref 'AWS::NoValue']
