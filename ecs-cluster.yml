@@ -145,7 +145,7 @@ Resources:
         # a better approach in the future would be to pass an ENV var to the lambda
         # function specifying the cluster
         Fn::Base64: !Sub |
-          #!/bin/bash
+          #!/usr/bin/env bash
           echo ECS_CLUSTER=${EcsClusterName} >> /etc/ecs/ecs.config
           echo ECS_ENGINE_AUTH_TYPE=docker >> /etc/ecs/ecs.config
           echo ECS_ENGINE_AUTH_DATA='${PortalDockerAuthData}' >> /etc/ecs/ecs.config
