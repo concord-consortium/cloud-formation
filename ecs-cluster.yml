@@ -137,13 +137,52 @@ Resources:
     Properties:
       Roles:
       - !Ref EcsInstanceRole
-        
+
+  CloudWatchLogsNotifications:
+    Type: AWS::SNS::Topic
+
   SSHLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       # The retention period can only be one of many predefined number of days
       # See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-logs-loggroup.html#cfn-logs-loggroup-retentionindays
       RetentionInDays: 120 # ~The duration of 1 trimester (~4 months)
+
+  # CloudWatch Metric Filters {{{
+  
+  # Invalid SSH user attempt Metric Filter
+  InvalidUserMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName:
+        Ref: SSHLogGroup
+      # When a user tries to SSH with invalid username the next line is logged in the SSH log file:
+      # Apr 20 02:39:35 ip-172-31-63-56 sshd[17136]: Received disconnect from xxx.xxx.xxx.xxx: 11:  [preauth]
+      FilterPattern: "[Mon, day, timestamp, ip, id, status = Invalid, ...]"
+      MetricTransformations:
+      - MetricValue: '1'
+        MetricNamespace: SSH
+        MetricName: sshInvalidUser
+
+  # }}}
+
+  # CloudWatch Alarms {{{
+
+  InvalidSSHUserAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: More than 10 SSH login attempts with invalid usernames have been made in the last minute
+      MetricName: sshInvalidUser
+      Namespace: SSH
+      Statistic: Sum # Sum of total failures in time window
+      Period: '60' # 60 seconds
+      EvaluationPeriods: '1'
+      Threshold: '10' # > 10 failed usernames/min
+      AlarmActions:
+      - Ref: CloudWatchLogsNotifications
+      ComparisonOperator: GreaterThanThreshold
+        
+  # }}}
 
   EcsInstanceLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -169,7 +208,7 @@ Resources:
                         "collect_list": [
                           {
                             "file_path": "/var/log/secure",
-                            "log_group_name": "/apps/system/security",
+                            "log_group_name": "${SSHLogGroup}",
                             "log_stream_name": "{ip_address}_{instance_id}",
                             "timestamp_format": "%d/%b/%Y:%H:%M:%S",
                             "timezone": "Local"
@@ -266,16 +305,20 @@ Resources:
           echo ECS_ENGINE_AUTH_TYPE=docker >> /etc/ecs/ecs.config
           echo ECS_ENGINE_AUTH_DATA='${PortalDockerAuthData}' >> /etc/ecs/ecs.config
           rpm -Uvh https://yum.newrelic.com/pub/newrelic/el5/x86_64/newrelic-repo-5-3.noarch.rpm
+          
           # Install the CloudFormation package
           yum install -y aws-cfn-bootstrap newrelic-sysmond git aws-cli
+
           # Install Amazon CloudWatch Agent by downloading and installing a RPM package for the following S3 URL:
           sudo rpm -Uvh https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
-          # Run CloudFormation helper Init script (cfn-init) which executes the "AWS::CloudFormation::Init"
+
+          # Run CloudFormation helper Init script (cfn-init) which executes the "AWS::CloudFormation::Init" defined above in "EcsInstanceLaunchConfig"."Metadata"
           # See:
           #  - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-helper-scripts-reference.html#cfn-helper-scripts-reference-amazon-amis
           #  - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-helper-scripts-reference.html#cfn-helper-scripts-reference-latest-version
           # /opt/aws/bin/cfn-init --verbose --stack 'arn:aws:cloudformation:us-east-1:612297603577:stack/staging-cluster/5e44d5e0-002c-11e7-8b52-500c286f3262' --resource EcsInstanceLaunchConfig --region us-east-1 --configsets default
           sudo /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackId} --resource EcsInstanceLaunchConfig --region ${AWS::Region} --configsets default
+
           nrsysmond-config --set license_key=${NewRelicLicenceKey}
           service newrelic-sysmond start
           groupadd -r docker
@@ -288,7 +331,7 @@ Resources:
           git clone --branch ${SSHScriptVersion} --depth 1 https://github.com/concord-consortium/aws-ec2-ssh
           cd aws-ec2-ssh
           sudo ./install.sh -i "${IAMGroupsForSSH}" -s "${IAMGroupsForSSH}"
-          # notify cloudformation
+          # Notify CloudFormation
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EcsInstanceAutoScaleGroup --region ${AWS::Region}
 
   EcsInstanceAutoScaleGroup:
