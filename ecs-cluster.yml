@@ -63,6 +63,10 @@ Parameters:
     Type: String
     Description: 'a json object with the configuration for docker hub. Something like :
       {"https://index.docker.io/v1/":{"username":"[username]", "password":"[password]","email":"email@example.com"}}'
+  SSHAttemptsFailedAlarmThreshold:
+    Type: Number
+    Description: Threshold for number of failed SSH login attempts per minute to trigger a metric filter alarm
+    Default: 25
 
   LambdaS3Bucket:
     Type: String
@@ -177,7 +181,7 @@ Resources:
       Statistic: Sum # Sum of total failures in time window
       Period: '60' # 60 seconds
       EvaluationPeriods: '1'
-      Threshold: '10' # > 10 failed usernames/min
+      Threshold: !Ref SSHAttemptsFailedAlarmThreshold
       AlarmActions:
       - Ref: CloudWatchLogsNotifications
       ComparisonOperator: GreaterThanThreshold
