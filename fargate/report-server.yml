@@ -68,10 +68,6 @@ Parameters:
     Type: String
     Default: https://token-service-62822.firebaseapp.com/api/v1/resources
     Description: The token service url.  Use "https://token-service-staging.firebaseapp.com/api/v1/resources" for staging.
-  TokenServiceEnv:
-    Type: String
-    Default: production
-    Description: The token service environment.  Use "staging" for staging.
 
 Resources:
 
@@ -110,8 +106,6 @@ Resources:
               Value: !Ref PortalUrl
             - Name: TOKEN_SERVICE_URL
               Value: !Ref TokenServiceUrl
-            - Name: TOKEN_SERVICE_ENV
-              Value: !Ref TokenServiceEnv
             - Name: PHX_HOST
               Value:
                 Fn::Join:
