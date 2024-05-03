@@ -26,7 +26,7 @@ Resources:
       Handler: index.handler
       MemorySize: 3072
       Role: !GetAtt [ProxyLambdaIamRole, Arn]
-      Runtime: nodejs16.x
+      Runtime: nodejs20.x
       Timeout: 30
       Code:
         S3Bucket: concord-devops
