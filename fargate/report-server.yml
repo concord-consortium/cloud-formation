@@ -74,17 +74,21 @@ Parameters:
   ServerSecretAccessKey:
     Type: String
     Description: The AWS secret access key for the report-server user.  This can be found in 1Password.
+  ReportServiceUrl:
+    Type: String
+    Default: https://us-central1-report-service-pro.cloudfunctions.net/api
+    Description: The url to the report service api. Use "https://us-central1-report-service-dev.cloudfunctions.net/api" for staging.
   ReportServiceToken:
     Type: String
     Description: The authentication token used to send commands to the report service.  This can be found in the report-service CF parameters.
   TokenServicePrivateBucket:
     Type: String
-    Default: token-service-files-private
-    Description: The private bucket where the Token Service stores interactive attachments.  Default is for staging. Use "cc-student-work" for production.
+    Default: cc-student-work
+    Description: The private bucket where the Token Service stores interactive attachments.  Use "token-service-files-private" for staging.
   OutputBucket:
     Type: String
-    Default: report-server-output
-    Description: The private bucket where the report server will output processed jobs.  Default is for staging.  Use "report-server-output-prod" for production.
+    Default: report-server-output-prod
+    Description: The private bucket where the report server will output processed jobs.  Use "report-server-output" for staging.
   JobsFolder:
     Type: String
     Default: jobs
