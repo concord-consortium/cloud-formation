@@ -68,6 +68,31 @@ Parameters:
     Type: String
     Default: https://token-service-62822.firebaseapp.com/api/v1/resources
     Description: The token service url.  Use "https://token-service-staging.firebaseapp.com/api/v1/resources" for staging.
+  ServerAccessKeyId:
+    Type: String
+    Description: The AWS access key id for the report-server user.  This can be found in 1Password.
+  ServerSecretAccessKey:
+    Type: String
+    Description: The AWS secret access key for the report-server user.  This can be found in 1Password.
+  ReportServiceToken:
+    Type: String
+    Description: The authentication token used to send commands to the report service.  This can be found in the report-service CF parameters.
+  TokenServicePrivateBucket:
+    Type: String
+    Default: token-service-files-private
+    Description: The private bucket where the Token Service stores interactive attachments.  Default is for staging. Use "cc-student-work" for production.
+  OutputBucket:
+    Type: String
+    Default: report-server-output
+    Description: The private bucket where the report server will output processed jobs.  Default is for staging.  Use "report-server-output-prod" for production.
+  JobsFolder:
+    Type: String
+    Default: jobs
+    Description: The folder under the output bucket where jobs are stored.
+  TranscriptsFolder:
+    Type: String
+    Default: transcripts
+    Description: The folder under which the audio transcripts are stored.
 
 Resources:
 
@@ -106,6 +131,20 @@ Resources:
               Value: !Ref PortalUrl
             - Name: TOKEN_SERVICE_URL
               Value: !Ref TokenServiceUrl
+            - Name: SERVER_ACCESS_KEY_ID
+              Value: !Ref ServerAccessKeyId
+            - Name: SERVER_SECRET_ACCESS_KEY
+              Value: !Ref ServerSecretAccessKey
+            - Name: REPORT_SERVICE_TOKEN
+              Value: !Ref ReportServiceToken
+            - Name: TOKEN_SERVICE_PRIVATE_BUCKET
+              Value: !Ref TokenServicePrivateBucket
+            - Name: OUTPUT_BUCKET
+              Value: !Ref OutputBucket
+            - Name: JOBS_FOLDER
+              Value: !Ref JobsFolder
+            - Name: TRANSCRIPTS_FOLDER
+              Value: !Ref TranscriptsFolder
             - Name: PHX_HOST
               Value:
                 Fn::Join:
@@ -113,6 +152,7 @@ Resources:
                   - - !Ref Subdomain
                     - '.'
                     - Fn::ImportValue: !Join [':', [!Ref 'StackName', 'HostedZoneName']]
+
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
