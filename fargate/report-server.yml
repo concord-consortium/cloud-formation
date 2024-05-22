@@ -139,6 +139,8 @@ Resources:
               Value: !Ref ServerAccessKeyId
             - Name: SERVER_SECRET_ACCESS_KEY
               Value: !Ref ServerSecretAccessKey
+            - Name: REPORT_SERVICE_URL
+              Value: !Ref ReportServiceUrl
             - Name: REPORT_SERVICE_TOKEN
               Value: !Ref ReportServiceToken
             - Name: TOKEN_SERVICE_PRIVATE_BUCKET
