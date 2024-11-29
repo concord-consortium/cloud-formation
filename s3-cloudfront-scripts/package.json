@@ -17,7 +17,7 @@
     "node": ">=14.8.0"
   },
   "dependencies": {
-    "aws-sdk": "^2.892.0",
+    "aws-sdk": "^2.1354.0",
     "csv-writer": "^1.6.0"
   }
 }
