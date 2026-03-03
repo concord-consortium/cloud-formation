@@ -33,6 +33,19 @@ Parameters:
     Type: AWS::EC2::VPC::Id
     # QA VpcId: vpc-c116d1bb
     Default: vpc-9c9714f9
+  AccessLogsS3Enabled:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Enable ALB access logs to S3
+  AccessLogsS3Bucket:
+    Type: String
+    Default: ""
+    Description: S3 bucket for ALB access logs
+  AccessLogsS3Prefix:
+    Type: String
+    Default: ""
+    Description: S3 key prefix for ALB access logs
 
 Conditions:
   AddDNS: !Not [!Equals [!Ref DomainName, ""]]
@@ -47,6 +60,12 @@ Resources:
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: !Ref 'LoadBalancerIdleTimeout'
+      - Key: access_logs.s3.enabled
+        Value: !Ref AccessLogsS3Enabled
+      - Key: access_logs.s3.bucket
+        Value: !Ref AccessLogsS3Bucket
+      - Key: access_logs.s3.prefix
+        Value: !Ref AccessLogsS3Prefix
 
   ELBDNS:
     Type: AWS::Route53::RecordSet
