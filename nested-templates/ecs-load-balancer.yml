@@ -49,6 +49,7 @@ Parameters:
 
 Conditions:
   AddDNS: !Not [!Equals [!Ref DomainName, ""]]
+  AccessLogsEnabled: !Equals [!Ref AccessLogsS3Enabled, "true"]
 
 Resources:
   ELBv2:
@@ -60,12 +61,21 @@ Resources:
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: !Ref 'LoadBalancerIdleTimeout'
-      - Key: access_logs.s3.enabled
-        Value: !Ref AccessLogsS3Enabled
-      - Key: access_logs.s3.bucket
-        Value: !Ref AccessLogsS3Bucket
-      - Key: access_logs.s3.prefix
-        Value: !Ref AccessLogsS3Prefix
+      - !If
+        - AccessLogsEnabled
+        - Key: access_logs.s3.enabled
+          Value: "true"
+        - !Ref "AWS::NoValue"
+      - !If
+        - AccessLogsEnabled
+        - Key: access_logs.s3.bucket
+          Value: !Ref AccessLogsS3Bucket
+        - !Ref "AWS::NoValue"
+      - !If
+        - AccessLogsEnabled
+        - Key: access_logs.s3.prefix
+          Value: !Ref AccessLogsS3Prefix
+        - !Ref "AWS::NoValue"
 
   ELBDNS:
     Type: AWS::Route53::RecordSet
