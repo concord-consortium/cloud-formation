@@ -61,11 +61,8 @@ Resources:
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: !Ref 'LoadBalancerIdleTimeout'
-      - !If
-        - AccessLogsEnabled
-        - Key: access_logs.s3.enabled
-          Value: "true"
-        - !Ref "AWS::NoValue"
+      - Key: access_logs.s3.enabled
+        Value: !Ref AccessLogsS3Enabled
       - !If
         - AccessLogsEnabled
         - Key: access_logs.s3.bucket
