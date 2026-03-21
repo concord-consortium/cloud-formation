@@ -107,7 +107,7 @@ Resources:
           AccessControlAllowHeaders:
             Items: ["*"]
           AccessControlAllowMethods:
-            Items: ["GET", "HEAD"]
+            Items: ["GET", "HEAD", "OPTIONS"]
           AccessControlAllowCredentials: false
           AccessControlMaxAgeSec: 86400
           OriginOverride: true
@@ -142,7 +142,7 @@ Resources:
               HTTPSPort: 443
               OriginProtocolPolicy: https-only
               OriginSSLProtocols: [TLSv1.2]
-        # Default behavior returns 403 — all valid paths are explicit
+        # Default behavior: short-TTL EarthScope proxy for all other paths
         DefaultCacheBehavior:
           TargetOriginId: earthscope
           ViewerProtocolPolicy: https-only
@@ -214,9 +214,9 @@ Outputs:
     Description: CloudFront domain name
     Value: !GetAtt Distribution.DomainName
   CustomDomain:
-    Description: Custom domain (requires DNS CNAME to DistributionDomain)
+    Description: Custom domain (configured via Route 53 A alias to DistributionDomain)
     Value: seismic-data.concord.org
-  ExampleEarthscapeHistorical:
+  ExampleEarthscopeHistorical:
     Description: Example — historical EarthScope data
     Value: "https://seismic-data.concord.org/earthscope/cached/dataselect/1/query?net=AK&sta=K204&loc=--&cha=HNZ&start=2026-01-30T00:00:00&end=2026-01-31T00:00:00"
   ExampleEarthscopeLive:
