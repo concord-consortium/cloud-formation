@@ -11,8 +11,28 @@ Description: >
 
 Resources:
   # --------------------------------------------------------------------------
-  # CloudFront Function — path rewrites for all origins
+  # CloudFront Functions
   # --------------------------------------------------------------------------
+
+  # Returns a static page for unrecognized paths (the default behavior)
+  DefaultResponseFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: seismic-data-default-response
+      AutoPublish: true
+      FunctionConfig:
+        Comment: "Return a static page for unrecognized paths"
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          return {
+            statusCode: 200,
+            statusDescription: 'OK',
+            headers: { 'content-type': { value: 'text/html' } },
+            body: '<html><body><h1>seismic-data.concord.org</h1><p>This domain proxies seismic data services for Concord Consortium\'s seismic applications.</p></body></html>'
+          };
+        }
+
   PathRewriteFunction:
     Type: AWS::CloudFront::Function
     Properties:
@@ -78,7 +98,11 @@ Resources:
     Properties:
       CachePolicyConfig:
         Name: seismic-data-event-db-cache
-        Comment: "24-hour TTL for earthquake/eruption event database"
+        Comment: "Cache for earthquake/eruption event database"
+        # DefaultTTL (24h) applies when the origin sends no Cache-Control header
+        # (e.g. eruptions endpoint). MaxTTL (1 year) allows the earthquakes
+        # endpoint's Cache-Control: max-age=604800 (1 week) to be honored.
+        # This matches the existing CloudFront distribution (E3FUQOSVUFZFEP).
         DefaultTTL: 86400
         MinTTL: 0
         MaxTTL: 31536000
@@ -142,7 +166,9 @@ Resources:
               HTTPSPort: 443
               OriginProtocolPolicy: https-only
               OriginSSLProtocols: [TLSv1.2]
-        # Default behavior: short-TTL EarthScope proxy for all other paths
+        # Default behavior: return a static page for unrecognized paths.
+        # An origin is still required by CloudFront but won't be reached
+        # because the function returns a response directly.
         DefaultCacheBehavior:
           TargetOriginId: earthscope
           ViewerProtocolPolicy: https-only
@@ -151,6 +177,9 @@ Resources:
           CachePolicyId: !Ref ShortCachePolicy
           ResponseHeadersPolicyId: !Ref CorsResponseHeadersPolicy
           Compress: true
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt DefaultResponseFunction.FunctionARN
         CacheBehaviors:
           # EarthScope — long TTL for historical data
           - PathPattern: "/earthscope/cached/*"
@@ -187,6 +216,8 @@ Resources:
             AllowedMethods: [GET, HEAD, OPTIONS]
             CachedMethods: [GET, HEAD]
             CachePolicyId: !Ref EventDbCachePolicy
+            # No OriginRequestPolicy needed — the API Gateway doesn't require
+            # forwarded headers, matching the existing distribution (E3FUQOSVUFZFEP).
             ResponseHeadersPolicyId: !Ref CorsResponseHeadersPolicy
             Compress: true
             FunctionAssociations:
