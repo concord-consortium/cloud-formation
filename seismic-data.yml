@@ -1,0 +1,258 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  CloudFront distribution for seismic-data.concord.org.
+  Proxies EarthScope FDSN web services (with CORS) and the existing
+  seismic-explorer event database API Gateway.
+
+  Path layout:
+    /earthscope/cached/* → service.earthscope.org (365-day TTL)
+    /earthscope/live/*   → service.earthscope.org (5-min TTL)
+    /event-db/*          → seismic-explorer API Gateway (24-hour TTL)
+
+Resources:
+  # --------------------------------------------------------------------------
+  # CloudFront Functions
+  # --------------------------------------------------------------------------
+
+  # Returns a static page for unrecognized paths (the default behavior)
+  DefaultResponseFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: seismic-data-default-response
+      AutoPublish: true
+      FunctionConfig:
+        Comment: "Return a static page for unrecognized paths"
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          return {
+            statusCode: 200,
+            statusDescription: 'OK',
+            headers: { 'content-type': { value: 'text/html' } },
+            body: '<html><body><h1>seismic-data.concord.org</h1><p>This domain proxies seismic data services for Concord Consortium\'s seismic applications.</p></body></html>'
+          };
+        }
+
+  PathRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: seismic-data-path-rewrite
+      AutoPublish: true
+      FunctionConfig:
+        Comment: "Rewrite paths for EarthScope and event-db origins"
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          // /earthscope/cached/dataselect/... → /fdsnws/dataselect/...
+          // /earthscope/live/dataselect/...   → /fdsnws/dataselect/...
+          request.uri = request.uri.replace(/^\/earthscope\/(cached|live)\//, "/fdsnws/");
+          // /event-db/earthquakes → /production/earthquakes
+          request.uri = request.uri.replace(/^\/event-db\//, "/production/");
+          return request;
+        }
+
+  # --------------------------------------------------------------------------
+  # Cache policies
+  # --------------------------------------------------------------------------
+  LongCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: seismic-data-long-cache
+        Comment: "365-day TTL for historical seismic data"
+        DefaultTTL: 31536000
+        MinTTL: 31536000
+        MaxTTL: 31536000
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig:
+            HeaderBehavior: none
+          CookiesConfig:
+            CookieBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: all
+
+  ShortCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: seismic-data-short-cache
+        Comment: "5-minute TTL for current-day seismic data"
+        DefaultTTL: 300
+        MinTTL: 0
+        MaxTTL: 300
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig:
+            HeaderBehavior: none
+          CookiesConfig:
+            CookieBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: all
+
+  EventDbCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: seismic-data-event-db-cache
+        Comment: "Cache for earthquake/eruption event database"
+        # DefaultTTL (24h) applies when the origin sends no Cache-Control header
+        # (e.g. eruptions endpoint). MaxTTL (1 year) allows the earthquakes
+        # endpoint's Cache-Control: max-age=604800 (1 week) to be honored.
+        # This matches the existing CloudFront distribution (E3FUQOSVUFZFEP).
+        DefaultTTL: 86400
+        MinTTL: 0
+        MaxTTL: 31536000
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig:
+            HeaderBehavior: none
+          CookiesConfig:
+            CookieBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: all
+
+  # --------------------------------------------------------------------------
+  # Response headers policy — CORS
+  # --------------------------------------------------------------------------
+  CorsResponseHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: seismic-data-cors
+        Comment: "CORS headers for seismic-data.concord.org"
+        CorsConfig:
+          AccessControlAllowOrigins:
+            Items: ["*"]
+          AccessControlAllowHeaders:
+            Items: ["*"]
+          AccessControlAllowMethods:
+            Items: ["GET", "HEAD", "OPTIONS"]
+          AccessControlAllowCredentials: false
+          AccessControlMaxAgeSec: 86400
+          OriginOverride: true
+
+  # --------------------------------------------------------------------------
+  # CloudFront Distribution
+  # --------------------------------------------------------------------------
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: "seismic-data.concord.org — EarthScope proxy + event database"
+        Enabled: true
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        Aliases:
+          - seismic-data.concord.org
+        ViewerCertificate:
+          AcmCertificateArn: arn:aws:acm:us-east-1:612297603577:certificate/2b62511e-ccc8-434b-ba6c-a8c33bbd509e
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: earthscope
+            DomainName: service.earthscope.org
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+          - Id: event-db
+            DomainName: e401fd4io0.execute-api.us-east-1.amazonaws.com
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        # Default behavior: return a static page for unrecognized paths.
+        # An origin is still required by CloudFront but won't be reached
+        # because the function returns a response directly.
+        DefaultCacheBehavior:
+          TargetOriginId: earthscope
+          ViewerProtocolPolicy: https-only
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          CachePolicyId: !Ref ShortCachePolicy
+          ResponseHeadersPolicyId: !Ref CorsResponseHeadersPolicy
+          Compress: true
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt DefaultResponseFunction.FunctionARN
+        CacheBehaviors:
+          # EarthScope — long TTL for historical data
+          - PathPattern: "/earthscope/cached/*"
+            TargetOriginId: earthscope
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: !Ref LongCachePolicy
+            # Managed policy: AllViewerExceptHostHeader
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            ResponseHeadersPolicyId: !Ref CorsResponseHeadersPolicy
+            Compress: true
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt PathRewriteFunction.FunctionARN
+          # EarthScope — short TTL for current-day data
+          - PathPattern: "/earthscope/live/*"
+            TargetOriginId: earthscope
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: !Ref ShortCachePolicy
+            # Managed policy: AllViewerExceptHostHeader
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            ResponseHeadersPolicyId: !Ref CorsResponseHeadersPolicy
+            Compress: true
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt PathRewriteFunction.FunctionARN
+          # Event database — earthquakes and eruptions
+          - PathPattern: "/event-db/*"
+            TargetOriginId: event-db
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: !Ref EventDbCachePolicy
+            # No OriginRequestPolicy needed — the API Gateway doesn't require
+            # forwarded headers, matching the existing distribution (E3FUQOSVUFZFEP).
+            ResponseHeadersPolicyId: !Ref CorsResponseHeadersPolicy
+            Compress: true
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt PathRewriteFunction.FunctionARN
+
+  # --------------------------------------------------------------------------
+  # DNS — Route 53 alias record for seismic-data.concord.org
+  # --------------------------------------------------------------------------
+  DnsRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: Z2P4W3M7MDAUV6
+      Name: seismic-data.concord.org
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2  # CloudFront's fixed hosted zone ID
+        DNSName: !GetAtt Distribution.DomainName
+
+Outputs:
+  DistributionId:
+    Description: CloudFront distribution ID
+    Value: !Ref Distribution
+  DistributionDomain:
+    Description: CloudFront domain name
+    Value: !GetAtt Distribution.DomainName
+  CustomDomain:
+    Description: Custom domain (configured via Route 53 A alias to DistributionDomain)
+    Value: seismic-data.concord.org
+  ExampleEarthscopeHistorical:
+    Description: Example — historical EarthScope data
+    Value: "https://seismic-data.concord.org/earthscope/cached/dataselect/1/query?net=AK&sta=K204&loc=--&cha=HNZ&start=2026-01-30T00:00:00&end=2026-01-31T00:00:00"
+  ExampleEarthscopeLive:
+    Description: Example — current-day EarthScope data
+    Value: "https://seismic-data.concord.org/earthscope/live/dataselect/1/query?net=AK&sta=K204&loc=--&cha=HNZ&start=2026-03-20T00:00:00&end=2026-03-21T00:00:00"
+  ExampleEarthquakes:
+    Description: Example — earthquake event database
+    Value: "https://seismic-data.concord.org/event-db/earthquakes?minmag=5&maxmag=10&mintime=2025-01-01&maxtime=2025-12-31"
