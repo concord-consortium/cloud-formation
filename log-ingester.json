@@ -291,9 +291,9 @@
       "Properties": {
         "DeploymentId": {"Ref": "LogAPIGatewayDeployment"},
         "MethodSettings": [{
-          "DataTraceEnabled": true,
+          "DataTraceEnabled": false,
           "HttpMethod": "*",
-          "LoggingLevel": "INFO",
+          "LoggingLevel": "OFF",
           "ResourcePath": "/*"
         }],
         "RestApiId": {"Ref": "LogAPIGateway"},
