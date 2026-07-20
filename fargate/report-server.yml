@@ -118,6 +118,11 @@ Parameters:
     AllowedValues: ["false", "true"]
     Default: "false"
     Description: Set to true to disable the stats server from periodically querying the portals
+  DisableExportsSweep:
+    Type: String
+    AllowedValues: ["false", "true"]
+    Default: "false"
+    Description: Set to true to disable the periodic export_scratch sweep GenServer
   ReportServerRDSSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
     Description: ID of RDS security group for report server database
@@ -208,6 +213,8 @@ Resources:
               Value: !Ref NgssDB
             - Name: DISABLE_STATS_SERVER
               Value: !Ref DisableStatsServer
+            - Name: DISABLE_EXPORTS_SWEEP
+              Value: !Ref DisableExportsSweep
             - Name: DATABASE_URL
               Value: !Ref DatabaseUrl
             - Name: ATHENA_REPORT_BUCKET
