@@ -144,6 +144,9 @@ Parameters:
     Description: Source key for report service data used by Athena reports
     Default: "authoring.concord.org"
 
+Conditions:
+  UsesNGSS: !Not [!Equals [!Ref NGSSRDSSecurityGroupId, ""]]
+
 Resources:
 
   # The task definition. This is a simple metadata description of what
@@ -289,6 +292,7 @@ Resources:
 
   NGSSDBIngress:
     Type: AWS::EC2::SecurityGroupIngress
+    Condition: UsesNGSS
     Properties:
       Description: Adds ECS service to NGSS RDS security group
       GroupId: !Ref NGSSRDSSecurityGroupId
