@@ -1,5 +1,4 @@
 AWSTemplateFormatVersion: 2010-09-09
-
 Description: Token service resources
 
 Parameters:
@@ -7,11 +6,17 @@ Parameters:
     Type: String
     Description: Lowercase name of environment (either staging or production)
     Default: staging
-    AllowedValues: [staging, production]
-  ExistingBucketName:
-    Type: String
-    Description: Name of existing bucket were files will be stored
-    Default: models-resources
+    AllowedValues:
+      - staging
+      - production
+  BucketsListable:
+    Type: CommaDelimitedList
+  BucketsReadableAndWritable:
+    Description: S3 Buckets that contents that are both readable and writable
+    Type: CommaDelimitedList
+  BucketsReadable:
+    Type: CommaDelimitedList
+    Description: S3 Buckets that have contents that are readable
 
 Resources:
   TokenServiceUser:
@@ -32,11 +37,11 @@ Resources:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
-        - Effect: Allow
-          Principal:
-            AWS: !GetAtt [TokenServiceUser, Arn]
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt [TokenServiceUser, Arn]
+            Action:
+              - sts:AssumeRole
       Description: !Sub "All needed S3 actions on token-service-${Environment}"
       MaxSessionDuration: 3600
   TokenServicePolicy:
@@ -46,18 +51,34 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-        - Effect: Allow
-          Action:
-          - s3:ListBucket
-          - s3:ListBucketVersions
-          Resource:
-          - !Sub "arn:aws:s3:::${ExistingBucketName}"
-        - Effect: Allow
-          Action:
-          - s3:PutObject
-          - s3:GetObject
-          - s3:GetObjectVersion
-          Resource: !Sub "arn:aws:s3:::${ExistingBucketName}/*"
+          - Sid: AllowListing
+            Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:ListBucketVersions
+            # TODO: use https://stackoverflow.com/a/66425178
+            Resource: !Ref BucketsListable
+          - Sid: AllowReadAndWrite
+            Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:DeleteObject
+              - s3:DeleteObjectVersion
+            Resource: !Ref BucketsReadableAndWritable
+          - Sid: AllowOnlyRead
+            Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource: !Ref BucketsReadable
+          - Sid: AllowListExecutions
+            Effect: Allow
+            Action:
+              - athena:ListQueryExecutions
+              - athena:GetQueryExecution
+            Resource:
+              - !Sub "arn:aws:athena:us-east-1:${AWS::AccountId}:workgroup/*"
       Roles:
         - !Ref TokenServiceRole
 
