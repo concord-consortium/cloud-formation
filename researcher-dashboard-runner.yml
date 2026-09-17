@@ -38,6 +38,11 @@ Parameters:
     Default: 8080
     MinValue: 1
     MaxValue: 65535
+  StatusBackend:
+    Type: String
+    Description: FIRESTORE writes the researcher status documents; LOG only logs them, for running a VM before the portal can mint a session token
+    Default: FIRESTORE
+    AllowedValues: [FIRESTORE, LOG]
   LogRetentionInDays:
     Type: Number
     Description: Days CloudWatch keeps the runner's build and runtime logs
@@ -211,7 +216,10 @@ Resources:
         - Architecture: ARM_64
       Resources:
         - MinimumMemoryInMiB: !Ref BaselineMemoryInMiB
-      AdditionalOsCapabilities: []
+      # Needed for CAP_SYS_ADMIN: the runner gives each analysis package its own
+      # empty network namespace, without which the package can read execution-role
+      # credentials from the instance metadata service.
+      AdditionalOsCapabilities: ["ALL"]
       EgressNetworkConnectors:
         - !Sub "arn:aws:lambda:${AWS::Region}:aws:network-connector:aws-network-connector:INTERNET_EGRESS"
       EnvironmentVariables:
@@ -219,6 +227,12 @@ Resources:
         # nothing secret belongs here. Per-VM values arrive in runHookPayload.
         - Key: PORT
           Value: !Ref HooksPort
+        - Key: DATA_ROOT
+          Value: /data
+        - Key: SYNC_BACKEND
+          Value: S3
+        - Key: STATUS_BACKEND
+          Value: !Ref StatusBackend
       Hooks:
         Port: !Ref HooksPort
         MicrovmHooks:

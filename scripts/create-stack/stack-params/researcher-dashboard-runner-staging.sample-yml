@@ -8,7 +8,7 @@
 - ParameterKey: CodeArtifactBucket
   ParameterValue: concord-devops
 - ParameterKey: CodeArtifactKey
-  ParameterValue: researcher-dashboard-runner/runner-0.1.0.zip
+  ParameterValue: researcher-dashboard-runner/runner-0.2.0.zip
 - ParameterKey: BaseImageArn
   ParameterValue: arn:aws:lambda:us-east-1:aws:microvm-image:al2023-1
 - ParameterKey: BaseImageVersion
@@ -17,5 +17,7 @@
   ParameterValue: '4096'
 - ParameterKey: HooksPort
   ParameterValue: '8080'
+- ParameterKey: StatusBackend
+  ParameterValue: FIRESTORE
 - ParameterKey: LogRetentionInDays
   ParameterValue: '30'
