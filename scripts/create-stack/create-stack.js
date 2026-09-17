@@ -157,7 +157,8 @@ async function createStack () {
   const modifiedParameters = modifyParams(originalParams, modifications)
 
   // Look for missing params based on template, and filter out any unnecssary param
-  const templateFile = path.join(__dirname, '..', createConfig.Template)
+  // Templates live at the repository root, two levels up from scripts/create-stack.
+  const templateFile = path.join(__dirname, '..', '..', createConfig.Template)
   const templateBody = await readFile(templateFile, 'utf8')
   const newParameters = filterBasedOnTemplate(templateBody, modifiedParameters)
 

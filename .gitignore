@@ -1,7 +1,6 @@
 node_modules
 
-scripts/create-config.yml
-scripts/stack-params/*.yml
-scripts/configs/*.yml
+scripts/create-stack/stack-params/*.yml
+scripts/create-stack/configs/*.yml
 
 processed_logs_with_id
