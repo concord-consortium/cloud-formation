@@ -1,0 +1,13 @@
+# Copy to create-config.researcher-dashboard-runner.yml and adjust before running
+# create-stack.js. The runner code artifact must already be uploaded to
+# s3://<CodeArtifactBucket>/<CodeArtifactKey> before the stack is created: it is a
+# zip of the runner's Dockerfile and build context, which Lambda builds into the
+# MicroVM image. `make publish-artifact` in researcher-dashboard/runner uploads it,
+# and `make artifact-uri` there prints the bucket and key the params file must match.
+Name: 'researcher-dashboard-runner-staging'
+Template: 'researcher-dashboard-runner.yml'
+StackParams: researcher-dashboard-runner-staging.yml
+# Every parameter lives in the params file above. Override one here only to
+# deviate from it for a single create, such as pointing a throwaway stack at an
+# unreleased CodeArtifactKey.
+ParameterModifications: {}

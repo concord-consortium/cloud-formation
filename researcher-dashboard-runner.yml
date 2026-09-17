@@ -1,0 +1,267 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Researcher Dashboard runner: MicroVM image, roles, data bucket, token secret and log group"
+
+Parameters:
+  Environment:
+    Type: String
+    Description: Lowercase name of environment (either staging or production)
+    Default: staging
+    AllowedValues: [staging, production]
+  Contact:
+    Type: String
+    Description: Value of the Contact cost-allocation tag
+    Default: dmartin
+  CodeArtifactBucket:
+    Type: String
+    Description: Bucket holding the runner code artifact zip (Dockerfile plus build context)
+    Default: concord-devops
+  CodeArtifactKey:
+    Type: String
+    Description: Key of the runner code artifact zip within CodeArtifactBucket
+    Default: researcher-dashboard-runner/runner-0.1.0.zip
+  BaseImageArn:
+    Type: String
+    Description: ARN of the Lambda-managed MicroVM base image
+    Default: arn:aws:lambda:us-east-1:aws:microvm-image:al2023-1
+  BaseImageVersion:
+    Type: String
+    Description: Version of the Lambda-managed base image. CloudFormation requires this, so base image patches need a stack update
+    Default: "1"
+  BaselineMemoryInMiB:
+    Type: Number
+    Description: Baseline MicroVM memory. 4096 gives 4 GB / 2 vCPU baseline, 16 GB / 8 vCPU peak and 16 GB of disk
+    Default: 4096
+    AllowedValues: [512, 1024, 2048, 4096, 8192]
+  HooksPort:
+    Type: Number
+    Description: Port the runner's HTTP server listens on, for both the hooks listener and the runner's own PORT
+    Default: 8080
+    MinValue: 1
+    MaxValue: 65535
+  LogRetentionInDays:
+    Type: Number
+    Description: Days CloudWatch keeps the runner's build and runtime logs
+    Default: 30
+
+Resources:
+
+  DataBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "researcher-dashboard-runner-${Environment}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        # Nothing here expires an object. Researchers re-analyze a class a year or
+        # more after pulling it, so data is kept until something deletes it
+        # deliberately. This rule only discards the orphaned parts of multipart
+        # uploads that never completed, which are billed but unreadable.
+        Rules:
+          - Id: AbortIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Contact
+          Value: !Ref Contact
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: researcher-dashboard-runner
+
+  ReportServiceTokenSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      # Created without a value. The token is written with put-secret-value from
+      # a file, so it reaches neither this template, a parameter file, nor a
+      # shell history entry.
+      Name: !Sub "researcher-dashboard-runner-${Environment}/report-service-token"
+      Description: report-service API token for the researcher-dashboard account, read by the runner's /run hook
+      Tags:
+        - Key: Contact
+          Value: !Ref Contact
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: researcher-dashboard-runner
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda-microvms/researcher-dashboard-runner-${Environment}"
+      RetentionInDays: !Ref LogRetentionInDays
+      Tags:
+        - Key: Contact
+          Value: !Ref Contact
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: researcher-dashboard-runner
+
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "researcher-dashboard-runner-${Environment}-build"
+      Description: Assumed by Lambda to fetch the code artifact and write build logs while building the MicroVM image
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
+      Policies:
+        - PolicyName: build
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${CodeArtifactBucket}/${CodeArtifactKey}"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda-microvms/*"
+      Tags:
+        - Key: Contact
+          Value: !Ref Contact
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: researcher-dashboard-runner
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "researcher-dashboard-runner-${Environment}-execution"
+      Description: Runtime role of every MicroVM from this image. One role per image, not per researcher
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
+      Policies:
+        - PolicyName: runtime
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt DataBucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "${DataBucket.Arn}/researchers/*"
+              # Packages are published through report-service, never by a VM.
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "${DataBucket.Arn}/scripts/*"
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref ReportServiceTokenSecret
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "${LogGroup.Arn}:*"
+              # The role is shared by every MicroVM from this image, so this
+              # cannot be narrowed to the calling VM.
+              - Effect: Allow
+                Action: lambda-microvms:SuspendMicrovm
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:microvm:*"
+      Tags:
+        - Key: Contact
+          Value: !Ref Contact
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: researcher-dashboard-runner
+
+  MicrovmImage:
+    Type: AWS::Lambda::MicrovmImage
+    Properties:
+      Name: !Sub "researcher-dashboard-runner-${Environment}"
+      Description: !Sub "Researcher Dashboard analysis runner (${Environment})"
+      BaseImageArn: !Ref BaseImageArn
+      BaseImageVersion: !Ref BaseImageVersion
+      BuildRoleArn: !GetAtt BuildRole.Arn
+      CodeArtifact:
+        Uri: !Sub "s3://${CodeArtifactBucket}/${CodeArtifactKey}"
+      CpuConfigurations:
+        - Architecture: ARM_64
+      Resources:
+        - MinimumMemoryInMiB: !Ref BaselineMemoryInMiB
+      AdditionalOsCapabilities: []
+      EgressNetworkConnectors:
+        - !Sub "arn:aws:lambda:${AWS::Region}:aws:network-connector:aws-network-connector:INTERNET_EGRESS"
+      EnvironmentVariables:
+        # Baked into the snapshot every VM shares, so nothing per-researcher and
+        # nothing secret belongs here. Per-VM values arrive in runHookPayload.
+        - Key: PORT
+          Value: !Ref HooksPort
+      Hooks:
+        Port: !Ref HooksPort
+        MicrovmHooks:
+          Run: ENABLED
+          RunTimeoutInSeconds: 60
+          Resume: ENABLED
+          ResumeTimeoutInSeconds: 60
+          Suspend: ENABLED
+          SuspendTimeoutInSeconds: 60
+          Terminate: ENABLED
+          TerminateTimeoutInSeconds: 60
+        MicrovmImageHooks:
+          Ready: ENABLED
+          ReadyTimeoutInSeconds: 600
+          Validate: DISABLED
+          ValidateTimeoutInSeconds: 600
+      Logging:
+        CloudWatch:
+          LogGroup: !Ref LogGroup
+      Tags:
+        - Key: Contact
+          Value: !Ref Contact
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: researcher-dashboard-runner
+
+Outputs:
+  DataBucketName:
+    Description: Bucket holding researcher datasets and analysis packages
+    Value: !Ref DataBucket
+  MicrovmImageArn:
+    Description: ARN of the MicroVM image, passed to run-microvm as --image-identifier
+    Value: !GetAtt MicrovmImage.ImageArn
+  ExecutionRoleArn:
+    Description: ARN passed to run-microvm as --execution-role-arn
+    Value: !GetAtt ExecutionRole.Arn
+  BuildRoleArn:
+    Description: ARN Lambda assumes to build the MicroVM image
+    Value: !GetAtt BuildRole.Arn
+  ReportServiceTokenSecretName:
+    Description: Secret name carried to the VM in runHookPayload
+    Value: !Sub "researcher-dashboard-runner-${Environment}/report-service-token"
+  LogGroupName:
+    Description: CloudWatch log group for MicroVM build and runtime logs
+    Value: !Ref LogGroup
