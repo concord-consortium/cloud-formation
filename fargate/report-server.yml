@@ -74,6 +74,11 @@ Parameters:
   ServerSecretAccessKey:
     Type: String
     Description: The AWS secret access key for the report-server user.  This can be found in 1Password.
+  PortalServiceSecret:
+    Type: String
+    Default: ''
+    Description: Key the portal signs the researcher-dashboard claim with. Must equal the portal's PORTAL_SERVICE_SECRET. Unset refuses every dashboard-token request, which is the safe default
+
   ReportServiceUrl:
     Type: String
     Default: https://us-central1-report-service-pro.cloudfunctions.net/api
@@ -197,6 +202,8 @@ Resources:
               Value: !Ref ReportServiceUrl
             - Name: REPORT_SERVICE_TOKEN
               Value: !Ref ReportServiceToken
+            - Name: PORTAL_SERVICE_SECRET
+              Value: !Ref PortalServiceSecret
             - Name: TOKEN_SERVICE_PRIVATE_BUCKET
               Value: !Ref TokenServicePrivateBucket
             - Name: OUTPUT_BUCKET
