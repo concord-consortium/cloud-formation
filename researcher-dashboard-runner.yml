@@ -202,6 +202,55 @@ Resources:
         - Key: Service
           Value: researcher-dashboard-runner
 
+  LauncherUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub "researcher-dashboard-runner-${Environment}-launcher"
+      Policies:
+        - PolicyName: launch
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: lambda-microvms:RunMicrovm
+                Resource:
+                  - !GetAtt MicrovmImage.ImageArn
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:microvm:*"
+              # One researcher's VM cannot be distinguished from another's in a
+              # resource ARN, so these are image-wide, as SuspendMicrovm already is
+              # on the execution role.
+              - Effect: Allow
+                Action:
+                  - lambda-microvms:GetMicrovm
+                  - lambda-microvms:CreateMicrovmAuthToken
+                  - lambda-microvms:SuspendMicrovm
+                  - lambda-microvms:TerminateMicrovm
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:microvm:*"
+              # run-microvm hands the VM its execution role, which the caller must be
+              # allowed to pass. Narrowed to Lambda so the role cannot be passed to
+              # anything else this user might reach.
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt ExecutionRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: lambda.amazonaws.com
+      Tags:
+        - Key: Contact
+          Value: !Ref Contact
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: researcher-dashboard-runner
+
+  LauncherKey:
+    Type: AWS::IAM::AccessKey
+    DependsOn: LauncherUser
+    Properties:
+      UserName: !Sub "researcher-dashboard-runner-${Environment}-launcher"
+      Serial: 1
+      Status: Active
+
   MicrovmImage:
     Type: AWS::Lambda::MicrovmImage
     Properties:
@@ -276,6 +325,18 @@ Outputs:
   ReportServiceTokenSecretName:
     Description: Secret name carried to the VM in runHookPayload
     Value: !Sub "researcher-dashboard-runner-${Environment}/report-service-token"
+  LauncherUserName:
+    Description: IAM user the report-service launch function calls lambda-microvms as
+    Value: !Ref LauncherUser
+  LauncherUserArn:
+    Description: ARN of the launch function's IAM user
+    Value: !GetAtt LauncherUser.Arn
+  LauncherAccessKey:
+    Description: Access key of the launch function's user, set as AWS_KEY on the function
+    Value: !Ref LauncherKey
+  LauncherSecretKey:
+    Description: Secret key of the launch function's user, set as AWS_SECRET_KEY on the function
+    Value: !GetAtt [LauncherKey, SecretAccessKey]
   LogGroupName:
     Description: CloudWatch log group for MicroVM build and runtime logs
     Value: !Ref LogGroup
