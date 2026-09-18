@@ -216,6 +216,12 @@ Resources:
                 Resource:
                   - !GetAtt MicrovmImage.ImageArn
                   - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:microvm:*"
+              # Read-only, and what the reuse decision is measured against: GetMicrovm
+              # reports the version a VM runs, and relaunching unless that is current
+              # needs the image's own version to compare it with.
+              - Effect: Allow
+                Action: lambda-microvms:GetMicrovmImage
+                Resource: !GetAtt MicrovmImage.ImageArn
               # One researcher's VM cannot be distinguished from another's in a
               # resource ARN, so these are image-wide, as SuspendMicrovm already is
               # on the execution role.
