@@ -192,7 +192,7 @@ Resources:
               # The role is shared by every MicroVM from this image, so this
               # cannot be narrowed to the calling VM.
               - Effect: Allow
-                Action: lambda-microvms:SuspendMicrovm
+                Action: lambda:SuspendMicrovm
                 Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:microvm:*"
       Tags:
         - Key: Contact
@@ -212,7 +212,7 @@ Resources:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
-                Action: lambda-microvms:RunMicrovm
+                Action: lambda:RunMicrovm
                 Resource:
                   - !GetAtt MicrovmImage.ImageArn
                   - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:microvm:*"
@@ -220,27 +220,40 @@ Resources:
               # reports the version a VM runs, and relaunching unless that is current
               # needs the image's own version to compare it with.
               - Effect: Allow
-                Action: lambda-microvms:GetMicrovmImage
+                Action: lambda:GetMicrovmImage
                 Resource: !GetAtt MicrovmImage.ImageArn
-              # One researcher's VM cannot be distinguished from another's in a
-              # resource ARN, so these are image-wide, as SuspendMicrovm already is
-              # on the execution role.
+              # Both ARN shapes: these actions authorize against the image a VM was
+              # built from as well as the VM itself, which is not visible from the API
+              # surface and only showed up when a real call was refused on the image ARN.
+              # One researcher's VM cannot be distinguished from another's in an ARN
+              # either way, so this is image-wide, as SuspendMicrovm already is on the
+              # execution role.
               - Effect: Allow
                 Action:
-                  - lambda-microvms:GetMicrovm
-                  - lambda-microvms:CreateMicrovmAuthToken
-                  - lambda-microvms:SuspendMicrovm
-                  - lambda-microvms:TerminateMicrovm
-                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:microvm:*"
+                  - lambda:GetMicrovm
+                  - lambda:CreateMicrovmAuthToken
+                  - lambda:SuspendMicrovm
+                  - lambda:TerminateMicrovm
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:microvm:*"
+                  - !GetAtt MicrovmImage.ImageArn
+              # run-microvm attaches the ingress and egress network connectors, and
+              # passing an AWS-managed connector is its own permission, separate from
+              # running the VM.
+              - Effect: Allow
+                Action: lambda:PassNetworkConnector
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:aws:network-connector:aws-network-connector:HTTP_INGRESS"
+                  - !Sub "arn:aws:lambda:${AWS::Region}:aws:network-connector:aws-network-connector:INTERNET_EGRESS"
               # run-microvm hands the VM its execution role, which the caller must be
-              # allowed to pass. Narrowed to Lambda so the role cannot be passed to
-              # anything else this user might reach.
+              # allowed to pass. Unconditioned: RunMicrovm does not populate
+              # iam:PassedToService, so a condition on it never matches and the grant
+              # never applies. The Resource is the one execution role, and that role's
+              # trust policy admits only lambda.amazonaws.com, so passing it anywhere
+              # else fails when the destination tries to assume it.
               - Effect: Allow
                 Action: iam:PassRole
                 Resource: !GetAtt ExecutionRole.Arn
-                Condition:
-                  StringEquals:
-                    iam:PassedToService: lambda.amazonaws.com
       Tags:
         - Key: Contact
           Value: !Ref Contact
