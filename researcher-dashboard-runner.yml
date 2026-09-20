@@ -84,22 +84,6 @@ Resources:
         - Key: Service
           Value: researcher-dashboard-runner
 
-  ReportServiceTokenSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      # Created without a value. The token is written with put-secret-value from
-      # a file, so it reaches neither this template, a parameter file, nor a
-      # shell history entry.
-      Name: !Sub "researcher-dashboard-runner-${Environment}/report-service-token"
-      Description: report-service API token for the researcher-dashboard account, read by the runner's /run hook
-      Tags:
-        - Key: Contact
-          Value: !Ref Contact
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Service
-          Value: researcher-dashboard-runner
-
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -181,9 +165,6 @@ Resources:
               - Effect: Allow
                 Action: s3:GetObject
                 Resource: !Sub "${DataBucket.Arn}/scripts/*"
-              - Effect: Allow
-                Action: secretsmanager:GetSecretValue
-                Resource: !Ref ReportServiceTokenSecret
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
@@ -341,9 +322,6 @@ Outputs:
   BuildRoleArn:
     Description: ARN Lambda assumes to build the MicroVM image
     Value: !GetAtt BuildRole.Arn
-  ReportServiceTokenSecretName:
-    Description: Secret name carried to the VM in runHookPayload
-    Value: !Sub "researcher-dashboard-runner-${Environment}/report-service-token"
   LauncherUserName:
     Description: IAM user the report-service launch function calls lambda-microvms as
     Value: !Ref LauncherUser
