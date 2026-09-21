@@ -220,11 +220,15 @@ Resources:
                   - !GetAtt MicrovmImage.ImageArn
               # run-microvm attaches the ingress and egress network connectors, and
               # passing an AWS-managed connector is its own permission, separate from
-              # running the VM.
+              # running the VM. The list is enumerated rather than wildcarded, so a
+              # launcher that starts attaching a new connector needs this stack updated
+              # too: SHELL_INGRESS is here because it yields an interactive root PTY, and
+              # granting it by pattern would hand that out to any future connector name.
               - Effect: Allow
                 Action: lambda:PassNetworkConnector
                 Resource:
                   - !Sub "arn:aws:lambda:${AWS::Region}:aws:network-connector:aws-network-connector:HTTP_INGRESS"
+                  - !Sub "arn:aws:lambda:${AWS::Region}:aws:network-connector:aws-network-connector:SHELL_INGRESS"
                   - !Sub "arn:aws:lambda:${AWS::Region}:aws:network-connector:aws-network-connector:INTERNET_EGRESS"
               # run-microvm hands the VM its execution role, which the caller must be
               # allowed to pass. Unconditioned: RunMicrovm does not populate
