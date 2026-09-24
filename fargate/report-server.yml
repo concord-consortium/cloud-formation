@@ -148,6 +148,37 @@ Parameters:
     Type: String
     Description: Source key for report service data used by Athena reports
     Default: "authoring.concord.org"
+  PortalPublicKeys:
+    Type: String
+    Default: ""
+    Description: JSON array of {"kid", "iss", "pem"}, one entry per portal this server serves, each what
+                 "rake portal_signing_key:public" prints on that portal with its site URL as iss. Empty trusts
+                 no portal key, so no Researcher Dashboard token can be minted or catalog launch token verified.
+  PackageBuckets:
+    Type: String
+    Default: ""
+    Description: JSON object mapping each portal server to its environment's Researcher Dashboard runner bucket,
+                 e.g. {"learn.concord.org":"<bucket>"}. Two portals may not share a bucket. Empty disables publishing.
+  PackagesAwsAccessKeyId:
+    Type: String
+    Default: ""
+    Description: Access key id of the runner stack's packages-only IAM user. Required when PackageBuckets is set.
+  PackagesAwsSecretAccessKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Secret access key of the runner stack's packages-only IAM user. Required when PackageBuckets is set.
+  PackagesCorsOrigins:
+    Type: String
+    Default: ""
+    Description: Comma-separated origins of the Researcher Dashboard app, which may read the package catalog with
+                 a researcher's launch token.
+  PackagesUnreviewedRuns:
+    Type: String
+    AllowedValues: ["false", "true"]
+    Default: "false"
+    Description: Set to true to let a non-official package run. Leave false until the Researcher Dashboard's
+                 per-researcher storage broker is live and S3 is off the runner's execution role.
 
 Conditions:
   UsesNGSS: !Not [!Equals [!Ref NGSSRDSSecurityGroupId, ""]]
@@ -227,6 +258,18 @@ Resources:
               Value: !Ref ReportServiceFirebaseApp
             - Name: ATHENA_SOURCE_KEY
               Value: !Ref AthenaSourceKey
+            - Name: PORTAL_PUBLIC_KEYS
+              Value: !Ref PortalPublicKeys
+            - Name: PACKAGE_BUCKETS
+              Value: !Ref PackageBuckets
+            - Name: PACKAGES_AWS_ACCESS_KEY_ID
+              Value: !Ref PackagesAwsAccessKeyId
+            - Name: PACKAGES_AWS_SECRET_ACCESS_KEY
+              Value: !Ref PackagesAwsSecretAccessKey
+            - Name: PACKAGES_CORS_ORIGINS
+              Value: !Ref PackagesCorsOrigins
+            - Name: PACKAGES_UNREVIEWED_RUNS
+              Value: !Ref PackagesUnreviewedRuns
             - Name: PHX_HOST
               Value:
                 Fn::Join:
