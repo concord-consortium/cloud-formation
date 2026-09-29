@@ -153,7 +153,10 @@ Parameters:
     Default: ""
     Description: JSON array of {"kid", "iss", "pem"}, one entry per portal this server serves, each what
                  "rake portal_signing_key:public" prints on that portal with its site URL as iss. Empty trusts
-                 no portal key, so no Researcher Dashboard token can be minted or catalog launch token verified.
+                 no portal key, so no Researcher Dashboard token can be minted and no catalog read is verified.
+                 A catalog read also needs each portal's own REPORT_SERVER_URL to be the URL this server answers
+                 to, https://<Subdomain>.<HostedZoneName>, because that is the audience the portal writes into
+                 the token and this server takes from PHX_HOST.
   PackageBuckets:
     Type: String
     Default: ""
@@ -172,7 +175,7 @@ Parameters:
     Type: String
     Default: ""
     Description: Comma-separated origins of the Researcher Dashboard app, which may read the package catalog with
-                 a researcher's launch token.
+                 a researcher's access token.
   PackagesUnreviewedRuns:
     Type: String
     AllowedValues: ["false", "true"]
