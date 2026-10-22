@@ -162,6 +162,16 @@ Parameters:
     Default: ""
     Description: JSON object mapping each portal server to its environment's Researcher Dashboard runner bucket,
                  e.g. {"learn.concord.org":"<bucket>"}. Two portals may not share a bucket. Empty disables publishing.
+  ClueExportUrls:
+    Type: String
+    Default: ""
+    Description: JSON object mapping each portal server to CLUE's clueExport function URL in that portal's CLUE
+                 project, e.g. {"learn.concord.org":"https://clueexport-<hash>-uc.a.run.app"}. Empty disables CLUE export.
+  ClueExportToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: The bearer clueExport checks, from the CLUE project's CLUE_EXPORT_BEARER secret. Required when ClueExportUrls is set.
   PackagesAwsAccessKeyId:
     Type: String
     Default: ""
@@ -265,6 +275,10 @@ Resources:
               Value: !Ref PortalPublicKeys
             - Name: PACKAGE_BUCKETS
               Value: !Ref PackageBuckets
+            - Name: CLUE_EXPORT_URLS
+              Value: !Ref ClueExportUrls
+            - Name: CLUE_EXPORT_TOKEN
+              Value: !Ref ClueExportToken
             - Name: PACKAGES_AWS_ACCESS_KEY_ID
               Value: !Ref PackagesAwsAccessKeyId
             - Name: PACKAGES_AWS_SECRET_ACCESS_KEY
