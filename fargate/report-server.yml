@@ -166,12 +166,14 @@ Parameters:
     Type: String
     Default: ""
     Description: JSON object mapping each portal server to CLUE's clueExport function URL in that portal's CLUE
-                 project, e.g. {"learn.concord.org":"https://clueexport-<hash>-uc.a.run.app"}. Empty disables CLUE export.
+                 project, e.g. {"learn.concord.org":"https://clueexport-<hash>-uc.a.run.app"}. Every URL must
+                 accept ClueExportToken, so all entries must use the same CLUE project. Empty disables CLUE export.
   ClueExportToken:
     Type: String
     Default: ""
     NoEcho: true
-    Description: The bearer clueExport checks, from the CLUE project's CLUE_EXPORT_BEARER secret. Required when ClueExportUrls is set.
+    Description: The bearer clueExport checks, from the CLUE project's CLUE_EXPORT_BEARER secret. Sent to every
+                 ClueExportUrls entry. Required when ClueExportUrls is set.
   PackagesAwsAccessKeyId:
     Type: String
     Default: ""
